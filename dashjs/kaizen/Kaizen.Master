@@ -1,0 +1,220 @@
+﻿<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Kaizen.master.cs" Inherits="ManageUPPRM.dashjs.kaizen.Kaizen" %>
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    
+    <title>mu</title>
+
+
+
+    <script src="/Scripts/jquery-1.11.1.min.js"></script>
+    <script src="/Scripts/jquery-ui-1.10.2.min.js"></script>
+    <script src="/Scripts/jquery.tmpl.min.js"></script>
+
+    <script src="../js/common.js"></script>
+
+
+
+    <script src="/dashjs/js/bootstrap.js"></script>
+    <script src="/dashjs/js/bootstrap-multiselect.js"></script>
+
+
+    <!-- HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="../assets/js/html5shiv.js"></script>
+    <![endif]-->
+
+    <script src="/Content/bootstrap-modal.js"></script>
+    <script src="/Content/bootstrap-tab.js"></script>
+
+
+
+    <script>
+
+        var topCat = 0;
+        var secondCat = 1;
+        function selectTopCat(cat)
+        {
+
+            if (secondCat>0)
+            {
+                document.getElementById('topCat' + topCat.toString()).className = 'list-group-item';
+            }
+
+            topCat = cat;
+
+            document.getElementById('topCat' + topCat.toString()).className = 'list-group-item active';
+
+            loadKaizenItems('');
+
+
+            
+        }
+
+        function selectSecondCat(cat)
+        {
+            if (secondCat>0)
+            {
+                document.getElementById('cat' + secondCat.toString()).className = '';
+            }
+
+            secondCat = cat;
+
+            document.getElementById('cat' + secondCat.toString()).className = 'active';
+            
+            loadKaizenItems('');
+        }
+
+        function doSearch(e)
+        {
+            var evt = e || window.event 
+            evt.preventDefault();
+            evt.stopPropagation();
+            //alert(evt);
+            //alert('searc');
+            
+            var s = document.getElementById('txtSearch').value;
+            loadKaizenItems(s);
+            return false;
+
+        }
+    </script>
+
+    <!-- Bootstrap core CSS -->
+    <link href="style/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom styles for this template -->
+    <link href="style/navbar.css" rel="stylesheet">
+    
+    <!-- Custom styles for modals -->
+    <link href="style/modal.css" rel="stylesheet">
+
+
+
+
+    <asp:ContentPlaceHolder ID="head" runat="server">
+    </asp:ContentPlaceHolder>
+</head>
+<body>
+    <form id="form1" runat="server">
+
+
+    <div class="container">
+
+      <!-- Static navbar -->
+      <div class="navbar-default navbar-custom" role="navigation">
+        <div class="container-fluid container-fluid-custom">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+          </div>
+          <div class="navbar-collapse collapse navbar-collapse-custom">
+            <ul class="nav navbar-nav nav-bar-custom ">
+
+                <asp:Repeater ID="repeaterSecondCat" runat="server">
+                          <ItemTemplate>
+                              <li id="cat<%# Eval("ID") %>" style="text-align:center;"><a href="#" onClick="selectSecondCat(<%# Eval("ID") %>)">&nbsp;<%# Eval("name") %>&nbsp;</a></li>
+                          </ItemTemplate>
+                </asp:Repeater>
+
+
+                <!--
+              <li style="width:9%; text-align:center;"><a href="#">5 Pillers</a></li>
+              <li class="active" style="width:15%; text-align:center;"><a href="#">Opertunities noticed</a></li>
+              <li style="width:13%; text-align:center;"><a href="#" >Do we agree</a></li>
+              <li style="width:15%; text-align:center;"><a href="#">Is there a Solution</a></li>
+              <li style="width:16.348%; text-align:center;"><a href="#">How do we implement</a></li>
+              <li style="width:20.6%; text-align:center;"><a href="#">Updates to new implements</a></li>
+              <li style="width:10%; text-align:center;"><a href="#">Follow Up</a></li>
+                    -->
+            </ul>
+           </div><!--/.nav-collapse -->
+        </div><!--/.container-fluid -->
+      </div>
+
+      <!-- Main component for a primary marketing message or call to action -->
+       <div class="row white-container row-custom">
+          <div class="col-md-3 col-md-custom-margin controls">
+                &nbsp;<input type="button" id="buttonSaveDocument" runat="server" class="btn btn-success" value="New" onclick="openModal();" />
+          	
+            </div>
+          <div class="col-md-6">
+          	
+          </div>
+
+          <div class="col-md-3 col-md-custom-margin controls" >
+          <input class="form-control custom-border search-background" type="text" id="txtSearch" placeholder="Enter search here" onblur="return doSearch(event);">
+          </div>
+        </div>
+        <div class="jumbotron white-container jubbotron-custom">
+			<div class="row">
+              <div class="col-md-3">
+
+
+
+              	<div class="list-group list-group-custom">
+                    <a id="topCat0" class="list-group-item" href="#" onClick="selectTopCat(0);">All</a>
+
+                      <asp:Repeater ID="repeaterTopCat" runat="server">
+
+                          <ItemTemplate>
+                              <a id="topCat<%# Eval("ID") %>" href="#" onClick="selectTopCat(<%# Eval("ID") %>);" class="list-group-item"><%# Eval("name") %></a>
+                          </ItemTemplate>
+                      </asp:Repeater>
+                      
+                      <a class="list-group-item "open-full-screen-modal"" onClick="openLeaderboard();" >Leaderboard</a>
+
+                    <a class="list-group-item" href="/dashjs/dashboardjsNew.aspx">UPSPACE</a>
+
+<!--	                  <a href="#" class="list-group-item">Safety</a>
+                      <a href="#" class="list-group-item">Quality</a>
+                      <a href="#" class="list-group-item">Effectiveness</a>
+                      <a href="#" class="list-group-item">Effeciency</a>
+                      <a href="#" class="list-group-item">Satisfaction</a> -->
+                </div>
+                  
+              </div>
+
+
+
+        <asp:ContentPlaceHolder ID="Content" runat="server">
+        
+        </asp:ContentPlaceHolder>
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+		</div>
+
+
+    </div> <!-- /container -->
+
+
+    <div>
+    </div>
+    </form>
+</body>
+</html>
+
+

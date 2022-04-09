@@ -1,0 +1,119 @@
+﻿/*____________________________________________________________________________________________ Document Page _*/
+html {
+    margin: 50px;
+}
+
+body.document-page {
+    background-color: #fff;
+}
+
+/*____________________________________________________________________________________________ Universal _*/
+.line-spacing {
+    border-top: 3px solid #949594;
+    margin-top: 15px;
+    padding-top: 20px;
+}
+
+.line-spacing-nopad {
+    border-top: 3px solid #949594;
+    margin-top: 15px;
+    padding-top: 5px;
+}
+
+/*____________________________________________________________________________________________ Section Areas _*/
+
+/* employee information */
+.group-info-wrapper .info-name {
+    float: right;
+    font-weight: bold;
+    width: 65%;
+}
+
+/* score information */
+.group-info-wrapper .info-score {
+    display: inline;
+    font-weight: bold;
+    margin-left: 20px;
+}
+
+/* progress bar */
+.progress-bar-wrapper {
+    height: 14px;
+    background-color: #D7D7D7;
+    margin-top: 3px;
+    -webkit-border-radius: 5px;
+    -moz-border-radius: 5px;
+    border-radius: 5px;
+}
+
+.progress-bar-completion {
+    background-color: #00A453;
+    height: 14px;
+}
+
+/* section content */
+.section-tabled-header {
+    background-color: #FFFACD;
+    padding: 8px;
+}
+
+.section-tabled-content table {
+    margin-top: 10px;
+    width: 100%;
+}
+
+    .section-tabled-content table th {
+        color: #989898;
+        padding: 5px;
+    }
+
+    .section-tabled-content table td {
+        padding: 5px;
+    }
+
+    .section-tabled-content table .task-name {
+        font-weight: bold;
+    }
+
+    .section-tabled-content table .action-item td:first-child {
+        padding-left: 40px;
+    }
+
+    .section-tabled-content table .total-score {
+        font-weight: bold;
+    }
+
+/* signature information */
+p.signature-acknowledge {
+    font-weight: bold;
+    font-style: italic;
+    margin-bottom: 0px;
+}
+
+.signature-wrapper {
+    padding-top: 18px;
+}
+
+.signature-line {
+    height: 15px;
+    border-bottom: 1px solid #949594;
+}
+
+.signature-wrapper label {
+    background-color: #fff;
+    padding-right: 8px;
+}
+
+.portlet, .portlet-title, .portlet-body {
+    margin-bottom: 2px !important;
+    padding-top: 1px !important;
+    padding-bottom: 1px !important;
+}
+
+.with-action {
+    cursor: pointer;
+}
+
+.section-tabled-header {
+    margin-bottom: 10px;
+}

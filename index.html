@@ -1,0 +1,2529 @@
+
+
+
+<!DOCTYPE html>
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>
+
+</title>
+
+
+    <script>
+        function loadNotifications() {
+            var cont = 0;
+            var i;
+            for (i = 0; i < notifications.length; i++) {
+                if (notifications[i].Sent == false) {
+                    cont = cont + 1;
+                }
+            }
+
+            $('#ulNotifications').html($('#notification-row-content').tmpl(notifications));
+            $('#pendingNotifications').html(cont.toString());
+
+            if (cont != 0) {
+                $('#notificationAmount').html(cont.toString());
+                $('#spanBadgeIcon').addClass('badge');
+                $('#spanBadgeIcon').addClass('badge-default');
+            }
+        }
+
+        function doOpenNotifications() {
+            //$('#pendingNotifications').html('0');
+            //$('#notificationAmount').html('0');
+
+            var i;
+            var strIds = '';
+
+            for (i = 0; i < notifications.length; i++) {
+                strIds = strIds + ',' + notifications[i].NotificationLogId;
+            }
+
+            var ids = "{ 'notificationIds': '" + strIds + "' }";
+
+            callWebService({ url: '/ManageUPWebService.asmx/MarkNotificationsAsSeen', data: ids}, true);
+        }
+
+        function setSection(section) {
+            var sectionElement = document.getElementById(section);
+            if (sectionElement) {
+                sectionElement.className = 'active';
+            }
+        };
+
+        function setSubSection(subsection) {
+            if (!(subsection instanceof jQuery) && subsection != '') {
+                subsection = $('.' + subsection);
+            };
+
+            if (!!subsection && subsection.length) {
+                subsection.parent().addClass('active').closest('.sub-menu').show().siblings('a').find('span').addClass('open').closest('li').addClass('open');
+            };
+        };
+
+        function logoff() {
+            //$('#logout-modal').modal('show');
+            window.location.href = '/logincontroller.aspx?ac=logoff';
+            return false;
+        };
+
+        function UpdateStatusChange(status) {
+            var DTO = { 'StatusID': parseInt(status) };
+
+            $.ajax({
+                type: "POST",
+                url: "/ManageUPWebService.asmx/UpdateAvailStatus",
+                async: true,
+                data: JSON.stringify(DTO),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                failure: function (data) {
+                    alert('error changing status');
+                },
+                success: function (data) {
+                    setStatusStyle(data.d);
+                },
+            });
+        }
+
+        function setStatusStyle(status) {
+            if (status == '../dashjs/img/delete_icon.png') {
+                $('#labStatusDescription').html('Unavailable');
+                $('#statusContainer1').addClass('red');
+                $('#statusContainer1').removeClass('green');
+                $('#statusContainer2').addClass('fa-minus');
+                $('#statusContainer2').removeClass('fa-plus');
+            }
+            else {
+                $('#labStatusDescription').html('Available');
+                $('#statusContainer1').addClass('green');
+                $('#statusContainer1').removeClass('red');
+                $('#statusContainer2').removeClass('fa-minus');
+                $('#statusContainer2').addClass('fa-plus');
+
+            }
+
+
+        }
+        
+        function loadDefaultImage(element) {
+            element.onerror = "";
+            element.src = "https://localhost:44329/dashjs/"
+            return true;
+        }
+
+
+        //Product Updates Functions
+        function loadProductUpdate(productUpdateID, callback) {
+            //Clear the error container
+            $("#product-updates-error-container").html("");
+
+            //If the ProductUpdateID is null, it will retrieve the most recent one
+            var data = {
+                productUpdateID: productUpdateID ? productUpdateID : ""
+            }
+
+            call('/ManageUPWebService.asmx/GetProductUpdate', JSON.stringify(data), function (response) {
+                productUpdate = response.d;
+
+                if (productUpdate) {
+                    //Load Current Update
+                    $(".product-updates-version").text(productUpdate.Version);
+                    $("#product-updates-title").text(productUpdate.Title);
+                    $(".product-updates-description-container").html(productUpdate.Description);
+
+
+                    //Load Previous Update
+                    if (productUpdate.PreviousProductUpdateID) {
+                        $("#product-updates-previous-version-button").prop('disabled', false);
+                        $("#product-updates-previous-version-button .fa-caret-left").show();
+                        $("#product-updates-previous-version-button").data("productUpdateID", productUpdate.PreviousProductUpdateID);
+                        $(".product-updates-previous-version").text(productUpdate.PreviousProductUpdateVersion);
+                    } else {
+                        $("#product-updates-previous-version-button").prop('disabled', true);
+                        $("#product-updates-previous-version-button .fa-caret-left").hide();
+                        $("#product-updates-previous-version-button").removeData("productUpdateID");
+                        $(".product-updates-previous-version").text(productUpdate.Version);
+                    }
+
+                    //Load Next Update
+                    if (productUpdate.NextProductUpdateID) {
+                        $("#product-updates-next-version-button").prop('disabled', false);
+                        $("#product-updates-next-version-button .fa-caret-right").show();
+                        $("#product-updates-next-version-button").data("productUpdateID", productUpdate.NextProductUpdateID);
+                        $(".product-updates-next-version").text(productUpdate.NextProductUpdateVersion);
+                    } else {
+                        $("#product-updates-next-version-button").prop('disabled', true);
+                        $("#product-updates-next-version-button .fa-caret-right").hide();
+                        $("#product-updates-next-version-button").removeData("productUpdateID");
+                        $(".product-updates-next-version").text(productUpdate.Version);
+                    }
+
+                    //In case there's only ONE ProductUpdate, we need to hide one of the navigation buttons
+                    if (!productUpdate.NextProductUpdateID && !productUpdate.PreviousProductUpdateID) {
+                        $("#product-updates-next-version-button").hide();
+                    } else {
+                        $("#product-updates-next-version-button").show();
+                    }
+
+                    //If it's not the default product update, we scroll up the modal
+                    if (productUpdateID) {
+                        $('#product-updates-modal .modal-body').slimScroll({ scrollTo: '0px' });
+                    }
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no Product Updates");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#product-updates-error-container"), "An error ocurred while retrieving the update information.");
+            });
+        }
+
+        //Tips of the Week Functions
+        function loadTip(tipID, callback) {
+            //Clear the error container
+            $("#tips-error-container").html("");
+
+            //If the tipID is null, it will retrieve the most recent one
+            var data = {
+                tipID: tipID ? tipID : ""
+            }
+
+            call('/ManageUPWebService.asmx/GetTip', JSON.stringify(data), function (response) {
+                tip = response.d;
+
+                if (tip) {
+                    //Load tip content
+                    loadTipContent(tip);
+
+                    //If it's not the default Tip, we scroll up the modal
+                    if (tipID) {
+                        $('#tips-modal .modal-body').slimScroll({ scrollTo: '0px' });
+                    }
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no tips of the week");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+
+        function loadRandomTip(callback) {
+            //Clear the error container
+            $("#tips-error-container").html("");
+
+            call('/ManageUPWebService.asmx/GetRandomTip', null, function (response) {
+                tip = response.d;
+
+                if (tip) {
+                    //Load tip content
+                    loadTipContent(tip);
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no tips of the week");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+
+        function loadTipContent(tip) {
+            //Load Current Tip
+            $("#tips-title").text(tip.Title);
+            $(".tips-description-container").html(tip.Description);
+
+            //Load Previous Tip
+            if (tip.PreviousTipID) {
+                $("#tips-previous-button").prop('disabled', false);
+                $("#tips-previous-button .fa-caret-left").show();
+                $("#tips-previous-button").data("tipID", tip.PreviousTipID);
+            } else {
+                $("#tips-previous-button").prop('disabled', true);
+                $("#tips-previous-button .fa-caret-left").hide();
+                $("#tips-previous-button").removeData("tipID");
+            }
+
+            //Load Next Tip
+            if (tip.NextTipID) {
+                $("#tips-next-button").prop('disabled', false);
+                $("#tips-next-button .fa-caret-right").show();
+                $("#tips-next-button").data("tipID", tip.NextTipID);
+            } else {
+                $("#tips-next-button").prop('disabled', true);
+                $("#tips-next-button .fa-caret-right").hide();
+                $("#tips-next-button").removeData("tipID");
+            }
+
+            //In case there's only ONE Tip, we need to hide one of the navigation buttons
+            if (!tip.NextTipID && !tip.PreviousTipID) {
+                $("#tips-next-button").hide();
+            } else {
+                $("#tips-next-button").show();
+            }
+
+            //Show subscription checkbox
+            $(".show-tips-checkbox-container").show();
+        }
+
+        function loadTipOfTheWeekSubscription() {
+            call('/ManageUPWebService.asmx/IsUserSubscribed', null, function (response) {
+                isSubscribed = response.d;
+
+                if (isSubscribed) {
+                    $("#show-tips-checkbox").prop('checked', true);
+                    $.uniform.update('#show-tips-checkbox');
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+    </script>
+
+
+    <!--new includes-->
+    <meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge" /><meta content="width=device-width, initial-scale=1.0" name="viewport" /><meta http-equiv="Content-type" content="text/html; charset=utf-8" /><link rel="apple-touch-icon" sizes="57x57" href="/_ima/apple-touch-icon-57x57.png" /><link rel="apple-touch-icon" sizes="60x60" href="/_ima/apple-touch-icon-60x60.png" /><link rel="apple-touch-icon" sizes="72x72" href="/_ima/apple-touch-icon-72x72.png" /><link rel="apple-touch-icon" sizes="76x76" href="/_ima/apple-touch-icon-76x76.png" /><link rel="apple-touch-icon" sizes="114x114" href="/_ima/apple-touch-icon-114x114.png" /><link rel="apple-touch-icon" sizes="120x120" href="/_ima/apple-touch-icon-120x120.png" /><link rel="apple-touch-icon" sizes="144x144" href="/_ima/apple-touch-icon-144x144.png" /><link rel="apple-touch-icon" sizes="152x152" href="/_ima/apple-touch-icon-152x152.png" /><link rel="apple-touch-icon" sizes="180x180" href="/_ima/apple-touch-icon-180x180.png" /><link rel="icon" type="image/png" href="/_ima/favicon-32x32.png" sizes="32x32" /><link rel="icon" type="image/png" href="/_ima/android-chrome-192x192.png" sizes="192x192" /><link rel="icon" type="image/png" href="/_ima/favicon-96x96.png" sizes="96x96" /><link rel="icon" type="image/png" href="/_ima/favicon-16x16.png" sizes="16x16" /><link rel="shortcut icon" href="/_ima/favicon.ico" /><link rel="manifest" href="/_ima/manifest.json" /><meta name="msapplication-TileColor" content="#2d89ef" /><meta name="msapplication-TileImage" content="/_ima/mstile-144x144.png" /><meta name="theme-color" content="#ffffff" />
+
+    <!-- global -->
+
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700&amp;subset=all" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/uniform/css/uniform.default.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-summernote/summernote.css" rel="stylesheet" type="text/css" />
+
+    <!-- BEGIN PAGE LEVEL STYLES -->
+    <link rel="stylesheet" type="text/css" href="/assets/global/plugins/select2/select2.css" /><link rel="stylesheet" type="text/css" href="/assets/global/plugins/datatables/extensions/ColReorder/css/dataTables.colReorder.min.css" /><link rel="stylesheet" type="text/css" href="/assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.css" />
+
+    <!-- theme -->
+    <link id="style_components" href="/assets/global/css/components-rounded.css" rel="stylesheet" type="text/css" /><link href="/assets/global/css/plugins.css" rel="stylesheet" type="text/css" /><link href="/assets/admin/layout/css/layout.css" rel="stylesheet" type="text/css" /><link id="style_color" href="/assets/admin/layout/css/themes/darkblue.css" rel="stylesheet" type="text/css" /><link href="/assets/admin/layout/css/custom.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-datepicker/css/datepicker3.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-datetimepicker/css/bootstrap-datetimepicker.css" rel="stylesheet" /><link href="/dashjs/css/validationEngine.jquery.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-toastr/toastr.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/emojione/assets/css/emojione.css" rel="stylesheet" />
+
+    <!-- begin javascript load (will reduce load-time being at the bottom) -->
+
+    <!-- BEGIN CORE PLUGINS -->
+    <!--[if lt IE 9]>
+<script src="/assets/global/plugins/respond.min.js"></script>
+<script src="/assets/global/plugins/excanvas.min.js"></script> 
+<![endif]-->
+    <script src="/assets/global/plugins/jquery.min.js" type="text/javascript"></script>
+
+
+    <!-- IMPORTANT! Load jquery-ui.min.js before bootstrap.min.js to fix bootstrap tooltip conflict with jquery ui tooltip -->
+    <script src="/assets/global/plugins/jquery-ui/jquery-ui.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-hover-dropdown/bootstrap-hover-dropdown.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.cokie.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/uniform/jquery.uniform.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-switch/js/bootstrap-switch.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-confirmation/bootstrap-confirmation.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script src="/assets/global/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.js"></script>
+    <script src="/assets/global/plugins/bootstrap-summernote/summernote.js"></script>
+    <script src="/assets/global/plugins/bootbox/bootbox.min.js"></script>
+    <script src="/assets/global/plugins/select.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.pulsate.min.js"></script>
+    <!-- END CORE PLUGINS -->
+
+    <!-- BEGIN PAGE LEVEL PLUGINS -->
+    <script src="/assets/global/scripts/metronic.js" type="text/javascript"></script>
+
+    <script type="text/javascript" src="/assets/global/plugins/select2/select2.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/media/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/TableTools/js/dataTables.tableTools.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/ColReorder/js/dataTables.colReorder.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/Scroller/js/dataTables.scroller.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/bootstrap-toastr/toastr.min.js"></script>
+    <script type="text/javascript" src="/dashjs/js/common.js"></script>
+    <script type="text/javascript" src="/dashjs/js/dynamicTab.js"></script>
+    <script type="text/javascript" src="/Scripts/jquery.tmpl.min.js"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.validationEngine.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.validationEngine-en.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.cookie.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/jquery-inputmask/jquery.inputmask.bundle.min.js"></script>
+    <script src="/assets/global/plugins/emojione/lib/js/emojione.js"></script>      
+
+    <!-- END PAGE LEVEL PLUGINS -->
+
+    <!-- BEGIN PAGE LEVEL SCRIPTS -->
+
+    <script src="/assets/global/plugins/fuelux/js/spinner.min.js" type="text/javascript"></script>
+    <script src="/assets/global/scripts/metronic.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/layout.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/quick-sidebar.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/demo.js" type="text/javascript"></script>
+    <script src="https://use.fonticons.com/dd7e0589.js"></script>
+    <!-- END PAGE LEVEL SCRIPTS -->
+
+
+    <!-- ON-PAGE SCRIPTS -->
+    <script>
+
+        // MY TASKS
+        // NOTE! BACKEND DATA HERE!!!!!!!
+        // NOTE! LINKS WILL BE LINKS TO RELATED PAGES
+
+
+        // pie relocation (listener)
+        function handlePieRelocation(event) {
+            window.location.href = event.dataItem.dataContext.url;
+        }
+
+
+        // tables 
+        var TableAdvanced = function () {
+            var initMyTasksTable = function () {
+
+                var table = $('#table_my_urgent_tasks');
+                var table_2 = $('#table_team_urgent_tasks');
+                var table_3 = $('#table_sub_for_approval');
+                var table_4 = $('#table_approval_required');
+
+                /* Fixed header extension: http://datatables.net/extensions/keytable/ */
+
+                var oTable = table.dataTable({
+                    "language": {
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var oTable_2 = table_2.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [3, "asc"]
+                    ]
+                });
+
+                var oTable_3 = table_3.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "aria": {
+                            "sortAscending": ": activate to sort column ascending",
+                            "sortDescending": ": activate to sort column descending"
+                        },
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var oTable_4 = table_4.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "aria": {
+                            "sortAscending": ": activate to sort column ascending",
+                            "sortDescending": ": activate to sort column descending"
+                        },
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var tableWrapper = $('#table_my_urgent_tasks_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_team_urgent_tasks_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_sub_for_approval_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_approval_required_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                tableWrapper.find('.dataTables_length select').select2(); // initialize select2 dropdown
+            }
+
+            return {
+
+                //main function to initiate the module
+                init: function () {
+                    if (!jQuery().dataTable) {
+                        return;
+                    }
+                    initMyTasksTable();
+                }
+            };
+        }();
+
+
+        // PAGE LOAD STARTS HERE
+        jQuery(document).ready(function () {
+
+            // initiate layout and plugins
+            Metronic.init(); // init metronic core components
+            Layout.init(); // init current layout
+            QuickSidebar.init(); // init quick sidebar
+            Demo.init(); // init demo features
+            TableAdvanced.init(); // required for this page
+
+
+            // user status change
+            $('#availability-handler li').click(function () {
+                var state = $(this).attr('rel');
+                var update_status = $(this).find('a').text();
+
+                // clear state
+                $('#status-handler span').text(update_status);
+                $('#availability-handler .availability-status').removeClass("green");
+                $('#availability-handler .availability-status').removeClass("red");
+
+                // set state
+                $('#availability-handler .availability-status').addClass(state);
+            });
+
+            loadNotifications();
+
+            //Product Updates Event Handlers
+            $("#product-updates-button").on("click", function () {
+                callback = function () { $("#product-updates-modal").modal("show"); };
+                loadProductUpdate(null, callback);
+            });
+
+            $(".product-update-navigation-button").on("click", function () {
+                var productUpdateID = $(this).data("productUpdateID");
+                
+                if (productUpdateID) {
+                    loadProductUpdate(productUpdateID);
+                }
+            });
+
+            //Tips of the Week Event Handlers
+            $("#tips-button").on("click", function () {
+                callback = function () { $("#tips-modal").modal("show"); };
+                loadRandomTip(callback);
+            });
+
+            $(".tip-navigation-button").on("click", function () {
+                var tipID = $(this).data("tipID");
+
+                if (tipID) {
+                    loadTip(tipID);
+                }
+            });
+
+            //Load tip of the week subscription checkbox
+            loadTipOfTheWeekSubscription();
+
+            $("#show-tips-checkbox").on("change", function () {
+                //alert("Subscribe or unsubscribe user!");
+                var subscribe = $(this).is(":checked");
+                call('/ManageUPWebService.asmx/SetTipsSubscription', JSON.stringify({ subscribe: subscribe }), function (response) {
+                    var response = response.d;
+
+                    if (response.Success) {
+                        var message = subscribe ? "You were successfully subscribed to tips of the week" : "You were successfully unsubscribed from tips of the week";
+                        showToastNotification(message, 'Tip of the Week');
+                    }
+                });
+            });
+        });
+    </script>
+    <script type="text/x-jquery-tmpl" id="msg-tmpl">
+        <div class="alert alert-dismissable">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true"></button>
+            <strong class="main-msg">{{html title}}</strong>
+            <ul class="error-list">{{html list}}</ul>
+        </div>
+    </script>
+
+    <!--end new includes-->
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+
+    <script src="js/jquery.timer.js"></script>
+    <script src="/Scripts/jquery.cookie.js"></script>
+
+    <script type="text/javascript">
+        var ShowAllTasks;
+    </script>
+
+    <script type="text/javascript">
+        var chart;
+        window.actionID = "1";
+        var showAllTasks = false;
+
+
+        $(document).ready(function () {
+            if ($.cookie('showAllTasks')) {
+                showAllTasks = $.cookie('showAllTasks');
+
+                if (showAllTasks == "true") {
+                    $(".team-toggle").addClass("active");
+                    $(".my-toggle").removeClass("active");
+                }
+            };
+
+            //UpdateChart();
+            loadingChart();
+            GetChart(false);
+            $('.my-team-switch input.toggle').on('change', function (event) {
+                var myTasks = $(this).val() == "my";
+                showAllTasks = !myTasks;
+                $.cookie('showAllTasks', showAllTasks);
+                loadingChart();
+                GetChart(false);
+
+                if (myTasks) {
+                    // my tasks
+                    $('.nav-tabs a[href="#tasks_tab_1"]').tab('show');
+
+                } else {
+
+                    // team tasks
+                    $('.nav-tabs a[href="#tasks_tab_2"]').tab('show');
+                }
+            });
+
+            //Set last 
+            if ($.cookie('selected-tab-dashboard')) {
+                $('#task-tabs a[href="' + $.cookie('selected-tab-dashboard') + '"]').tab('show');
+            };
+
+            $('#task-tabs li').on('shown.bs.tab', function (e) {
+                $.cookie('selected-tab-dashboard', $(e.target).attr('href'));
+            })
+        });
+
+        function loadingChart() {
+            Metronic.blockUI({ target: '#objectives-container', cenrerY: true, animate: true });
+        };
+
+        function GetChart(showMessage) {
+            var DTO = { 'ShowAllTasks': showAllTasks };
+            $.ajax({
+                type: "POST",
+                url: "../ManageUPWebService.asmx/GetTaskAggregateNew",
+                data: JSON.stringify(DTO),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (chartdata) {
+                    data = chartdata.d;
+                   
+                    completed = data.CompletedTasks;
+                    pending = data.DueSoonTasks;
+                    immediate = data.UrgentTasks;
+                    newitems = data.NewTasks;
+
+                    if (completed === 0 && pending === 0 && immediate === 0 && newitems === 0) {
+                        $("#info-msg-chart").html('<p>No data</p>').closest('.row').show();
+                        $('div.my_tasks').hide();
+                        Metronic.unblockUI('#objectives-container');
+                    }
+                    else {
+                        $("#info-msg-chart").closest('.row').hide();
+                        $('div.my_tasks').show();
+                        data = new Array();
+                        data[0] = completed;
+                        data[1] = pending;
+                        data[2] = immediate;
+                        data[3] = newitems;
+                        drawChart(data);
+                        //if (showMessage == true) {
+                        //  $("TransparencyChartUpdate").modal('show');
+                        //}
+                    }
+                }
+            });
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        var lastClickGraph;
+
+        function drawChart(thisdata) {
+            lastData = thisdata;
+            var data = [
+                { label: "Completed", data: thisdata[0], color: "#4CA249" }, //1E5108
+                { label: "Due Soon", data: thisdata[1], color: "#FED500" }, //F2C403
+                { label: "Urgent", data: thisdata[2], color: "#BF353C" }, //821B1B
+                { label: "New", data: thisdata[3], color: "#FE8A00" }]; //E07117
+
+
+            var data2 = google.visualization.arrayToDataTable([
+              ['Task', 'Count'],
+              ['Completed', thisdata[0]],
+              ['Due Soon', thisdata[1]],
+              ['Urgent', thisdata[2]],
+              ['New', thisdata[3]]
+            ]);
+
+            var options = {
+                title: '',
+                pieSliceText: 'none',
+                is3D: true,
+                legend: { position: 'labeled' },
+                chartArea: { left: 20, top: 0, width: '100%', height: '100%' },
+                colors: ['#4CA249', '#FED500', '#BF353C', '#FE8A00']
+            };
+
+            var chart = new google.visualization.PieChart(document.getElementById('piechart'));
+
+            chart.draw(data2, options);
+
+
+            //var colors = ['#4CA249', '#FED500', '#BF353C', '#FE8A00'];
+            //var colors = ['#4CA249', '#BF353C', '#FE8A00','#FED500'];
+
+            //var chartId = 'piechart';
+            //var dataLength = 2;
+            //var graphics = document.getElementById(chartId).querySelectorAll("svg > g");
+            // graphics[0] is title, graphics[1..n] are pie slices, and we take label area which is graphics[n+1]
+            //var labelsGraphics = graphics[dataLength+1].childNodes; 
+
+
+            // get svg graphics and replace colors
+            //var replaceLabelColors = function(){
+            //  var colorIndex = 0;
+            //for (var i = 0; i < labelsGraphics.length; i++) {
+            //                    if (i % 2 == 0) {
+            // skip even indexes
+            //                      continue;
+            //                } else {
+            //                  var currentLine = labelsGraphics[i];
+            //                currentLine.childNodes[0].setAttribute("stroke", colors[colorIndex]); // <path stroke="#636363" ...>
+            //              currentLine.childNodes[1].setAttribute("fill", colors[colorIndex]); // <circle fill="#636363" ...>
+            //            colorIndex++;
+            //      }
+            //}
+            //}
+
+            //replaceLabelColors();
+            //google.visualization.events.addListener(chart, "onmouseover", replaceLabelColors);
+            //google.visualization.events.addListener(chart, "onmouseout", replaceLabelColors);
+
+
+            Metronic.unblockUI('#objectives-container');
+
+            //google.visualization.events.addListener(chart, 'select', selectHandler);
+            google.visualization.events.addListener(chart, 'select', function () {
+                //  try {
+
+                var selectedItem = chart.getSelection()[0];
+                var cat = data2.getValue(selectedItem.row, 0);
+
+                window.location.href = '/dashjs/tasks.aspx?team=' + showAllTasks + '&action=' + cat;
+            });
+        }
+
+
+    </script>
+
+    <script type="text/javascript">
+        var data;
+        var newitems // = 4;
+        var pending;
+        var completed;
+        var immediate;
+
+        var lastData;
+
+        $(document).ready(function () {
+
+            //$("#UserList1").multiselect({
+            //    enableFiletering: true,
+            //});
+
+            //GerMessageCount();
+
+            //$("#AlertTabs a").click(function (e) {
+            //    e.preventDefault();
+            //    $(this).tab('show');
+            //});
+
+            //$("#alternate").change(function () {
+            //    alert('tedt');
+            //});
+        });
+
+        function GerMessageCount() {
+            var userid = '1';
+            $.ajax({
+                type: "POST",
+                url: "../ManageUPWebService.asmx/GetUserMessageCount",
+                async: true,
+                data: "{userID:'" + userid + "'}",
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    if (data.d > 0) {
+                        $('#chat').removeClass("social-feed-numbers-gray");
+                        $('#chat').addClass("social-feed-numbers-red");
+                        $('#chat').text(data.d);
+                    }
+                    else {
+
+                        $('#chat').removeClass("social-feed-numbers-red");
+                        $('#chat').addClass("social-feed-numbers-gray");
+                        $('#chat').text("");
+                    }
+
+                }
+            });
+        }
+
+        function ShowAllTasksModal() {
+            $("#ResourcesModal").modal('hide');
+            $("#AllTaskListModal").modal('show');
+            $('ul.nav-tabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+
+                $('#AllCompletedTasksLoader').empty();
+                $('#AllUrgentTasksLoader').empty();
+                $('#AllDueSoonTasksLoader').empty();
+                $('#AllTasksLoader').empty();
+                $('#AllNewTasks').DataTable();
+
+                var tabType = $(e.target).attr('data-type');
+
+                if (tabType == 'CompletedTasks') {
+
+                    $('#AllCompletedTasksLoader').html('<img src="img/ajax-loader.gif" />');
+                    window.actionID = "1";
+                    GetAllTasks();
+                }
+                else if (tabType == 'UrgentTasks') {
+
+                    $('#AllUrgentTasksLoader').append('<img src="img/ajax-loader.gif" />');
+                    window.actionID = "2";
+                    GetAllTasks();
+                }
+                else if (tabType == 'DueSoonTasks') {
+
+                    $('#AllDueSoonTasksLoader').append('<img src="img/ajax-loader.gif" />');
+                    window.actionID = "3";
+                    GetAllTasks();
+                }
+                else if (tabType == 'NewTasks') {
+
+                    $('#AllNewTasksLoader').append('<img src="img/ajax-loader.gif" />');
+                    window.actionID = "4";
+                    GetAllTasks();
+                }
+                else if (tabType == 'AllTasks') {
+                    $('#AllTasksLoader').append('<img src="img/ajax-loader.gif" />');
+                    window.actionID = "0";
+                    GetAllTasks();
+                };
+
+            });
+            $('#AllTasksTabs a:first').tab('show');
+        }
+
+        function ShowTaskList(msg) {
+
+            switch (msg) {
+                case 0:
+                    $("#welcome_div").empty();
+                    break;
+                case '':
+                    $("#welcome_div").empty();
+                    $("#welcome_div").append("<h2>Alerts</h2>");
+                    break;
+                default:
+                    $("#welcome_div").empty();
+                    $("#welcome_div").append("<h2>" + msg + "</h2>");
+                    break;
+            }
+
+            $('#TaskListLoader1').empty();
+            $('#TaskListLoader2').empty();
+            $('#TaskListLoader3').empty();
+            $('#SubmittedForApproval').empty();
+            $('#ApprovalRequests').empty();
+
+            $('#TaskListLoader1').append('<img src="img/ajax-loader.gif" />');
+            $('#TaskListLoader2').append('<img src="img/ajax-loader.gif" />');
+            $('#TaskListLoader3').append('<img src="img/ajax-loader.gif" />');
+            $('#SubmittedForApproval').append('<img src="img/ajax-loader.gif" />');
+            $('#ApprovalRequests').append('<img src="img/ajax-loader.gif" />');
+
+            $('#TaskListDialog').on('shown', function () {
+                $.ajax({
+                    type: "POST",
+                    url: "dashboardjsNew.aspx/GetTaskTable",
+                    async: true,
+                    data: "{Action:'" + 1 + "',Category:'" + 5 + "'}",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        $('#TaskListLoader1').empty();
+                        if (data.d.length === 0) {
+                        }
+                        else {
+                            $('#TaskListLoader1').append('<h3>My Urgent Tasks</h3>');
+                            $('#TaskListLoader1').append(data.d);
+
+                            $('#TaskListLoader1 tbody tr').each(function (i, el) {
+                                applyTooltipIfTextIsTooLong($(el).find('td:nth-child(2)'), 20, '#TaskListDialog');
+                            });
+
+                            $('#UrgentTaskList').dataTable();
+                        }
+                    }
+                });
+
+                $.ajax({
+                    type: "POST",
+                    url: "dashboardjsNew.aspx/GetTaskTable",
+                    async: true,
+                    data: "{Action:'" + 2 + "',Category:'" + 5 + "'}",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        if (data.d.length == 0) {
+                            $('#TaskListLoader2').empty();
+                        }
+                        else {
+                            $('#TaskListLoader2').empty();
+                            $('#TaskListLoader2').html('<h3>Team Tasks</h3>');
+                            $('#TaskListLoader2').append(data.d);
+
+                            $('#TaskListLoader2 tbody tr').each(function (i, el) {
+                                applyTooltipIfTextIsTooLong($(el).find('td:nth-child(2)'), 20, '#TaskListDialog');
+                            });
+
+                            $('#TeamUrgentTaskList').dataTable();
+                        }
+                    }
+                });
+
+                $.ajax({
+                    type: "POST",
+                    url: "dashboardjsNew.aspx/GetTaskTable",
+                    async: true,
+                    data: "{Action:'" + 3 + "',Category:'" + 5 + "'}",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        if (data.d.length == 0) {
+                            $('#TaskListLoader3').empty();
+                        }
+                        else {
+                            $('#TaskListLoader3').empty();
+                            $('#TaskListLoader3').html('<h3>Covered Tasks</h3>');
+                            $('#TaskListLoader3').append(data.d);
+
+                            $('#TaskListLoader3 tbody tr').each(function (i, el) {
+                                applyTooltipIfTextIsTooLong($(el).find('td:nth-child(2)'), 20, '#TaskListDialog');
+                            });
+
+                            $('#CoveredTeamTaskList').dataTable();
+                        }
+                    }
+                });
+
+                $.ajax({
+                    type: "POST",
+                    url: "dashboardjsNew.aspx/GetTaskTable",
+                    async: true,
+                    data: "{Action:'" + 6 + "',Category:'" + 6 + "'}",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        var tableContainer = $('#SubmittedForApproval');
+
+                        if (data.d.length == 0) {
+                            tableContainer.empty();
+                        }
+                        else {
+                            tableContainer.empty();
+                            tableContainer.html('<h3>Submitted for approval</h3>');
+                            tableContainer.append(data.d);
+
+                            tableContainer.find('tbody tr').each(function (i, el) {
+                                applyTooltipIfTextIsTooLong($(el).find('td:nth-child(2)'), 20, '#TaskListDialog');
+                            });
+
+                            tableContainer.find('table').dataTable();
+                        }
+                    }
+                });
+
+                $.ajax({
+                    type: "POST",
+                    url: "dashboardjsNew.aspx/GetTaskTable",
+                    async: true,
+                    data: "{Action:'" + 7 + "',Category:'" + 7 + "'}",
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (data) {
+                        var tableContainer = $('#ApprovalRequests');
+
+                        if (data.d.length == 0) {
+                            tableContainer.empty();
+                        }
+                        else {
+                            tableContainer.empty();
+                            tableContainer.html('<h3>Approval Requests</h3>');
+                            tableContainer.append(data.d);
+
+                            tableContainer.find('tbody tr').each(function (i, el) {
+                                applyTooltipIfTextIsTooLong($(el).find('td:nth-child(2)'), 20, '#TaskListDialog');
+                            });
+
+                            tableContainer.find('table').dataTable();
+                        }
+                    }
+                });
+            });
+
+            $('#TaskListDialog').modal({
+                backdrop: true,
+                keyboard: true,
+                show: false
+            }).css({
+                // make width 90% of screen
+                'width': function () {
+                    return ($(document).width() * .5) + 'px';
+                },
+                // center model
+                'margin-left': function () {
+                    return -($(this).width() / 2);
+                }
+            });
+
+            if (msg === 0) {
+                $("#AlertTab1").removeClass("active");
+                $("#tab1").removeClass("active");
+                $("#AlertTab2").addClass("active");
+                $("#tab2").addClass("active");
+            }
+
+            $('#TaskListDialog').modal('show');
+        }
+
+        function CloseTaskList() {
+            $('#TaskListDialog').modal('hide');
+        }
+
+        function ShowResources() {
+            $("#ResourcesModal").modal('show');
+        }
+
+        function RedirectToMyProfile() {
+            $("#HelpModal").modal('hide');
+            var url = "./admin/profile.aspx";
+            $(location).attr('href', url);
+        }
+
+        function ShowHelpModal() {
+            $("#HelpModal").modal('show');
+        }
+
+        function ShowLeaderBoardModal() {
+            $.ajax({
+                type: "POST",
+                url: "dashboardjsNew.aspx/GetLeaderboard",
+                async: true,
+                beforeSend: function () {
+                    $("#ResourcesModal").modal('hide');
+                    $("#LeaderboardModal").modal('show');
+                },
+                data: {},
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    $("#LeaderboardDiv").html('');
+                    $("#LeaderboardDiv").html(data.d);
+                },
+            });
+        }
+
+        function ShowGenericModal() {
+            $("#ResourcesModal").modal('hide');
+            $("#GenericComingSoon").modal('show');
+        }
+
+        function RedirectToMyDocs() {
+            $("#ResourcesModal").modal('hide');
+            var url = "./admin/mydocs.aspx";
+            $(location).attr('href', url);
+        }
+
+        function ShowMessageModal() {
+            $("#MessageModal").modal('show');
+        }
+
+        function ShowTasks(fordate) {
+            $('#TaskModal').modal({
+                backdrop: true,
+                keyboard: true,
+                show: false
+            }).css({
+                // make width 90% of screen
+                'width': function () {
+                    return ($(document).width() * .5) + 'px';
+                },
+                // center model
+                'margin-left': function () {
+                    return -($(this).width() / 2);
+                }
+            });
+            LoadCalendar();
+            $("#AppointmentModal").modal('show');
+        }
+
+        $(window).resize(function () {
+            if (typeof lastData != 'undefined') {
+                drawChart(lastData);
+            };
+        });
+
+        function GenericComingSoon() {
+            $("#GenericComingSoon").modal('show');
+        }
+
+        function DismissGenericComingSoon() {
+            $("#GenericComingSoon").modal('hide');
+        }
+
+        function ShowDynamicDoc(id) {
+
+            $('#DynamicDocModal').modal({
+                backdrop: true,
+                keyboard: true,
+                show: false
+            }).css({
+                // make width 90% of screen
+                'width': function () {
+                    return ($(document).width() * .5) + 'px';
+                },
+                // center model
+                'margin-left': function () {
+                    return -($(this).width() / 2);
+                }
+            });
+
+            $('#DynamicDocModalReply').modal({
+                backdrop: true,
+                keyboard: true,
+                show: false
+            }).css({
+                // make width 90% of screen
+                'width': function () {
+                    return ($(document).width() * .5) + 'px';
+                },
+                // center model
+                'margin-left': function () {
+                    return -($(this).width() / 2);
+                }
+            });
+
+            $("#DDSubmissionModal").modal('hide');
+
+            if (id == 1) {
+                $("#DynamicDocModal").modal('show');
+            }
+            else {
+                $("#DynamicDocModalReply").modal('show');
+            }
+        }
+
+        function ShowCreateTask() {
+            $("#CreateTask").modal('show');
+        }
+
+        function AddTaskRedirect(id) {
+            $("#CreateTask").modal('hide');
+            switch (id) {
+                case 1:
+                    window.location.href = "addptask.aspx";
+                    break;
+                case 2:
+                    window.location.href = "addtask.aspx";
+                    break;
+                case 3:
+                    window.location.href = "adddtask.aspx";
+                    break;
+            }
+        }
+
+        function RedirectTaskDetail(taskid) {
+            if (taskid != "") {
+                window.location.href('../dashjs/taskcontroller.aspx?TaskID=' + taskid);
+                return false;
+            }
+        }
+
+        function RedirectDynamicDocument() {
+            window.location.href('../dashjs/dynamicdocument.aspx');
+            return false;
+        }
+
+        function ShowTransparencyUpdate() {
+            $("#TransparencyChartUpdate").modal('show');
+        }
+
+        function SubmitDD() {
+            $("#DDSubmissionModal").modal('show');
+        }
+    </script>
+
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+        google.load("visualization", "1", { packages: ["corechart"] });
+    </script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $(".nav-tabs li").on('shown.bs.tab', function () {
+                var container = $('#task-tabs-content .tab-pane.active');
+                getTasksForDashboardjs(container, $(this).data('action'), $(this).data('team'));
+            });
+
+            $('li.active').trigger('shown.bs.tab');
+
+            
+        });
+
+        function getTasksForDashboardjs(container, actionID, team) {
+            $.ajax({
+                type: "POST",
+                url: "../ManageUpWebService.asmx/GetTasksRows",
+                async: true,
+                data: JSON.stringify({ category: actionID, team: team, linkToChart: true, audit: false }),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                beforeSend: function () {
+                    container.find('.dataTables_wrapper').hide();
+                    Metronic.blockUI({ target: container, cenrerY: true, animate: true });
+                },
+                success: function (data) {
+                    Metronic.unblockUI(container);
+                    container.find('.dataTables_wrapper').show();
+                    if (data.d.length == 0) {
+                        container.html('<h3>There are no tasks</h3>');
+                    }
+                    else {
+                        var table = container.find('table');
+                        if (table.hasClass('dataTable')) {
+                            var oTable = table.DataTable();
+                            oTable.destroy();
+                        };
+
+                        table.find('tbody').html(data.d);
+
+                        if ((actionID != 'Urgent' && actionID != 'All') || !team) {
+                            table.find('tbody tr td.owner-column').remove();
+                        };
+                        table.find('tbody tr td.not-dashboard-col').remove();
+
+                        table.find('tbody .tooltips').tooltip();
+                        table.DataTable({ stateSave: true });
+                    };
+                }
+            });
+        };
+    </script>
+
+</head>
+<body class="page-header-fixed page-quick-sidebar-over-content">
+    <form method="post" action="./dashboardjsNew.aspx" id="form1" class="form-horizontal">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+</div>
+
+
+<script type="text/javascript">
+//<![CDATA[
+$(function() { ShowTaskList(''); }); $(function() { setSection('liUpspace'); });var mp_roleId = 4; var mp_clientId = 1;var notifications = [{"NotificationLogId":5908,"EventDate":"\/Date(1437456960090)\/","EventDescription":"There are changes on your team","UserId":0,"ObjectId":1,"ObjectType":"TE","Sent":true,"Color":"","Icon":"","friendlyTime":"2443 days ago","minutesAgo":3518523.4329841784,"EventDateAsString":"2015/07/21 13:36:00","link":"/dashjs/team.aspx"},{"NotificationLogId":5803,"EventDate":"\/Date(1437447700623)\/","EventDescription":"There are changes on the site settings","UserId":0,"ObjectId":0,"ObjectType":"  ","Sent":true,"Color":"","Icon":"","friendlyTime":"2443 days ago","minutesAgo":3518677.7574341786,"EventDateAsString":"2015/07/21 11:01:40","link":""},{"NotificationLogId":3845,"EventDate":"\/Date(1436765166867)\/","EventDescription":"A task has been assigned to you","UserId":0,"ObjectId":7625,"ObjectType":"TA","Sent":true,"Color":"#4392cb","Icon":" fa-bullhorn","friendlyTime":"2451 days ago","minutesAgo":3530053.3200341784,"EventDateAsString":"2015/07/13 13:26:06","link":"/dashjs/taskcontroller.aspx?TaskId=7625"},{"NotificationLogId":3842,"EventDate":"\/Date(1436765166337)\/","EventDescription":"A task has been assigned to you","UserId":0,"ObjectId":7622,"ObjectType":"TA","Sent":true,"Color":"#4392cb","Icon":" fa-bullhorn","friendlyTime":"2451 days ago","minutesAgo":3530053.3288675118,"EventDateAsString":"2015/07/13 13:26:06","link":"/dashjs/taskcontroller.aspx?TaskId=7622"}];//]]>
+</script>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="1D375628" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="lIZ44Kt0A16uPuW9xDJoA/szwMoTLkMdmXVFgjhDG363/Ozgz51M3fSE2ZXVi0BhvonyM3iC9egt4YQ2d1SSTlB+y6MksWejmqzyCdFHnTWgBo3Ab39p+LWUc4vti7pRJjJZhZbghQ2ET5SQstZ+Xp7KDTHQRf5YPZjRSxZ81gdic7oEU6fLX4C9Y5UIwvDSg85fy4LsjVXt3hgrorVm3Gsavea6zOfEaY2rkHvNzNMauDb192x6HrX6OPSIbrdMSfzdTTC+GO114amBSdzijyxbIM+VRbT+os/sZ7t/4sHs05bDg7iyNeoNd/Xbp7xNuBvKebnGO89acOikoU1FHUQPAylizIil+40PG4n2LXwGnfG+OHVwtt9xxGsqL1Uu" />
+</div>
+
+
+        <!--  ///// START HEADER //////////////////////////////////////// -->
+        <div id="HeaderContainer" class="page-header navbar navbar-fixed-top">
+
+
+            <!-- start inner -->
+            <div class="page-header-inner">
+
+
+                <!-- logo -->
+                <div class="page-logo">
+                    <img src="img/20150608_14_SSGH%20logo%20-%20white.png" id="HeaderClientLogo" class="margin-top-5" height="90" />
+
+                    
+                    
+                </div>
+                <!-- end logo -->
+
+
+                <!-- right navigation -->
+                <div class="top-menu">
+
+                    <!-- right -->
+                    <ul class="nav navbar-nav pull-right">
+                        <li class="dropdown dropdown-extended dropdown-inbox">
+                            <a href="http://www.gmail.com" id="emailLink" class="dropdown-toggle open-new-window">
+                                <i class="icon-envelope-open"></i>
+                            </a>
+                        </li>
+                        
+                            <li class="dropdown dropdown-extended dropdown-notification" id="header_notification_bar">
+                                <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true" onclick="doOpenNotifications();" onmouseover="doOpenNotifications();">
+                                    <i class="icon-bell"></i>
+                                    <span id="spanBadgeIcon">
+                                        <span id="notificationAmount"></span></span>
+                                </a>
+
+                                <ul class="dropdown-menu">
+                                    <li class="external">
+                                        <h3 class="tooltips" data-original-title="Notifications on various alertable items. If your Administrator has granted access, you can customize your notification preferences under 'Settings'"><span class="bold">
+                                            <span id="pendingNotifications"></span>
+                                            pending</span> notifications</h3>
+                                        <a href="#" onclick="window.location = '/dashjs/notificationsHistory.aspx';">view all</a>
+                                    </li>
+                                    <li>
+                                        <ul class="dropdown-menu-list scroller" style="height: 250px;" data-handle-color="#637283" id="ulNotifications">
+
+
+                                            <!-- notification example -->
+                                            <!-- end -->
+
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </li>
+                        
+                        <li class="dropdown dropdown-user">
+
+                            <!-- start -->
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+
+                                <!-- DEVELOPER: Front-end User -->
+                                <img class="img-circle" src="dashjs/img/adm.jpg" onerror="loadDefaultImage(this);" style="max-width: 50px; max-height: 29px" />
+                                <span class="username username-hide-on-mobile">Admin Admin<br />
+                                    (MD, Director)</span>
+                                <i class="fa fa-angle-down"></i>
+                            </a>
+                            <!-- end -->
+
+                            <!-- start dropdown -->
+                            <ul class="dropdown-menu dropdown-menu-default">
+                                <li><a href="/dashjs/admin/profile.aspx"><i class="fa fa-user"></i>Profile <i data-videoid='148097782' class='fa fa-play-circle help-video'></i></a></li>
+                                <li id="menuSettings"><a href="/dashjs/admin/settings.aspx"><i class="fa fa-cog"></i>Settings </a></li>
+                                <li><a href="/ZenDesk.ashx" class="open-new-window"><i class="fa fa-question-circle"></i>Help <i data-videoid='138959367' class='fa fa-play-circle help-video'></i></a></li>
+                                <li><a href="#" id="tips-button"><i class="fa fa-lightbulb-o"></i> Tip of the Week</a></li>
+                                <li class="divider"></li>
+                                <li><a href="#" id="product-updates-button"><i class="fa fa-exclamation-circle"></i> What's New?</a></li>
+                                <li class="divider"></li>
+                                <li><a href="#" onclick="logoff();"><i></i><strong>Log Out </strong></a></li>
+                            </ul>
+                            <!-- end dropdown -->
+
+                        </li>
+                    </ul>
+                    <!-- end right -->
+                </div>
+                <!-- end right navigation -->
+
+            </div>
+            <!-- end inner -->
+
+        </div>
+        <!--  ///// END HEADER //////////////////////////////////////// -->
+
+
+        <div class="clearfix"></div>
+
+        <div class="page-container">
+
+
+            <!--  ///// START SIDEBAR //////////////////////////////////////// -->
+            <div id="MainMenuBar" class="page-sidebar-wrapper">
+                <div class="page-sidebar navbar-collapse collapse">
+                    <ul class="page-sidebar-menu" data-keep-expanded="false" data-auto-scroll="true" data-slide-speed="200">
+                        <li class="sidebar-toggler-wrapper">
+                            <!-- SIDEBAR TOGGLER BUTTON -->
+                            <div class="sidebar-toggler tooltips" data-placement="bottom" data-original-title="Expands or minimizes the navigation bar"></div>
+                            <!-- END -->
+
+                        </li>
+
+
+                        <!-- start white status -->
+                        <li class="subnav-white-status" style="display: none;">
+
+                            <!-- start row -->
+                            
+                            <!-- end row -->
+
+                            <!-- start buttons -->
+                            <!-- DEVELOPER NOTE: availability-handler is to set green / red states -->
+                            
+
+                        </li>
+                        <!-- end white status -->
+
+
+                        <!-- 
+					DEVELOPER NOTES:
+					EXAMPLE OF ACTIVE STATE
+					NOTICE class="active"
+				 -->
+
+                        
+                                <li id="liChart">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-pie-chart"></i>
+                                        <span class="title">Chart</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='/dashjs/dashboardjsNew.aspx'>Main Chart</a></li></ul>
+                                </li>
+                            
+                                <li id="liCalendarView">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Calendar View</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='/dashjs/dashboardjsNew.aspx'>Schedular</a></li></ul>
+                                </li>
+                            
+                                <li id="liTasks">
+                                    <a href="/dashjs/tasks.aspx">
+                                        <i class="fa fa-bullseye"></i>
+                                        <span class="title">Tasks</span>
+                                        <i data-videoid=138951095 class='fa fa-play-circle help-video pull-right'></i>
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li>
+                            <a href='javascript:;'>
+						        Create <span class='arrow'><i data-videoid='150270487' class='fa fa-play-circle help-video pull-right'></i></span>
+						    </a>
+                            <ul class='sub-menu'>
+                                <li><a class='tasks_create_personal' href='/dashjs/addptask.aspx'>Personal</a></li>
+                                <li><a class='tasks_create_adhoc' href='/dashjs/addtask.aspx'>Ad-Hoc</a></li>
+                                <li><a class='tasks_create_template' href='/dashjs/adddtask.aspx'>Template</a></li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href='javascript:;'>
+							    Status  <span class='badge badge-success'>19</span><span class='arrow'><i data-videoid='150271632' class='fa fa-play-circle help-video pull-right'></i></span> 
+					        </a>
+                            <ul class='sub-menu'>
+                                <li><a href='/dashjs/tasks.aspx?action=Urgent' data-selected='Urgent'>Urgent      <span class='badge badge-success'>19</span></a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=DueSoon' data-selected='DueSoon'>Due Soon    </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=New' data-selected='New'>New         </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=Completed' data-selected='Completed'>Completed   </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=All' data-selected='All'>All         </a></li>
+                            </ul>
+                        </li>
+
+                        <li><a href='/dashjs/tasks.aspx?action=BackUp' data-selected='BackUp'>Backup            <span class='badge badge-success'>0</span><i data-videoid='150271681' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                        <li><a href='/dashjs/tasks.aspx?action=Personal' data-selected='Personal'>Personal Tasks      <i data-videoid='150271800' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                        <li><a class='tasks_template' href='/dashjs/TemplateTasks.aspx'>Template Tasks    <i data-videoid='150271735' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                    </ul>
+                                </li>
+                            
+                                <li id="liReports">
+                                    <a href="/dashjs/admin/reportDocuments.aspx">
+                                        <i class="fa fa-pencil-square-o"></i>
+                                        <span class="title">Reports Templates</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    <ul class='sub-menu'>
+                                            <li><a href='/dashjs/admin/reportDocuments.aspx' class='documents_view'>View Template Reports <i data-videoid='148097884' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                                            <li><a href='/dashjs/admin/createreportdoc.aspx' class='documents_create'>Create Template Reports <i data-videoid='148096850' class='fa fa-play-circle help-video pull-right'></i></a></li>                                            
+                                            <li><a href='/dashjs/admin/mydocs.aspx' class='documents_generate'>Generate Reports <i data-videoid='148097136' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                                            <li><a href='/dashjs/AssignedReports.aspx' class='documents_assigned_reports'>Assigned Reports</a></li>
+                                            <li><a href='/dashjs/documents.aspx' class='documents_documents'>My Generated Reports</a></li>
+                                        </ul>
+                                </li>
+                            
+                                <li id="liTickets">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Tickets</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liApproval">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Approval</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        
+                                <li><a href='/dashjs/tasks.aspx?action=SubmittedForApproval' data-selected='SubmittedForApproval'>Submitted For Approval  <span class='badge badge-success'>0</span></a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=ApprovalRequests' data-selected='ApprovalRequests'>Approval Requests       </a></li>
+                            </ul>
+                                </li>
+                            
+                                <li id="liFiles">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Files</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liCommentsandNotes">
+                                    <a href="/dashjs/audit.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Comments and Notes</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liMarketPlace">
+                                    <a href="/dashjs/team.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Market Place</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liContacts">
+                                    <a href="/dashjs/leaderboard.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Contacts</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liSettings">
+                                    <a href="/dashjs/admin/users.aspx">
+                                        <i class="fa fa-cog"></i>
+                                        <span class="title">Settings</span>
+                                        <i data-videoid=148097593 class='fa fa-play-circle help-video pull-right'></i>
+
+                                        
+
+                                    </a>
+                                    <ul class='sub-menu'><li class='settings_clients'><a href="/dashjs/admin/clients.aspx">Clients</a></li>
+<li class='settings_daemon'><a href="/dashjs/admin/DaemonLogs.aspx">Daemon Status</a></li>
+<li class='settings_product_updates'><a href="/dashjs/admin/ProductUpdates.aspx">Product Updates</a></li>
+<li class='settings_tips'><a href="/dashjs/admin/Tips.aspx">Tips of the Week</a></li>
+<li class='settings_import'><a href="/dashjs/admin/importData.aspx">Import/Export Data</a></li>
+<li class='settings_users'><a href="/dashjs/admin/users.aspx">Users</a></li>
+<li class='settings_departments'><a href="/dashjs/admin/departments.aspx">Departments</a></li>
+<li class='settings_settings'><a href="/dashjs/admin/settings.aspx">Site settings</a></li>
+<li class='settings_categories'><a href="/dashjs/admin/categories.aspx">Categories and Subcategories</a></li>
+<li class='settings_permissions'><a href="/dashjs/admin/permissions.aspx">Permissions</a></li>
+<li class='settings_settings'><a href="/dashjs/admin/notifications.aspx">Notifications</a></li>
+<li class='settings_profile'><a href="/dashjs/admin/profile.aspx">My Profile</a></li>
+<li class='settings_linked_apps'><a href="/dashjs/admin/LinkedApps.aspx">Linked Apps</a></li>
+</ul>
+                                </li>
+                            
+                                <li id="liContentLibrary">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-book"></i>
+                                        <span class="title">Content Library</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liBackUp">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-database"></i>
+                                        <span class="title">BackUp</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liClientAdminTab">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-user"></i>
+                                        <span class="title">Client Admin Tab</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liWorkspace">
+                                    <a href="/dashjs/admin/createreportdoc.aspx">
+                                        <i class="fa fa-user"></i>
+                                        <span class="title">Workspace</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                        <!-- start (two-level) -->
+                        <!--                        <li id="liSupport">
+                            <a href="javascript:;">
+                                <i class="fa fa-cog"></i>
+                                <span class="title">Settings</span>
+                                <span class="arrow "></span>
+                            </a>
+
+                            <ul class="sub-menu">
+                                <li><a href="/dashjs/admin/users.aspx">Users</a></li>
+                                <li><a href="/dashjs/admin/departments.aspx">Departments</a></li>
+                                <li><a href="/dashjs/admin/roles.aspx">Roles</a></li>
+                            </ul>
+
+                        </li>
+                        -->
+                        <!-- end -->
+
+                    </ul>
+
+                </div>
+
+            </div>
+
+
+
+            
+
+    <style>
+        * {box-sizing: border-box;}
+        ul {list-style-type: none;}
+        body {font-family: Verdana, sans-serif;}
+
+        .month {
+          padding: 70px 25px;
+          width: 100%;
+          background: #1abc9c;
+          text-align: center;
+        }
+
+        .month ul {
+          margin: 0;
+          padding: 0;
+        }
+
+        .month ul li {
+          color: white;
+          font-size: 20px;
+          text-transform: uppercase;
+          letter-spacing: 3px;
+        }
+
+        .month .prev {
+          float: left;
+          padding-top: 10px;
+        }
+
+        .month .next {
+          float: right;
+          padding-top: 10px;
+        }
+
+        .weekdays {
+          margin: 0;
+          padding: 10px 0;
+          background-color: #ddd;
+        }
+
+        .weekdays li {
+          display: inline-block;
+          width: 13.6%;
+          color: #666;
+          text-align: center;
+        }
+
+        .days {
+          padding: 10px 0;
+          background: #eee;
+          margin: 0;
+        }
+
+        .days li {
+          list-style-type: none;
+          display: inline-block;
+          width: 13.6%;
+          text-align: center;
+          margin-bottom: 5px;
+          font-size:12px;
+          color: #777;
+        }
+
+        .days li .active {
+          padding: 5px;
+          background: #1abc9c;
+          color: white !important
+        }
+
+        /* Add media queries for smaller screens */
+        @media screen and (max-width:720px) {
+          .weekdays li, .days li {width: 13.1%;}
+        }
+
+        @media screen and (max-width: 420px) {
+          .weekdays li, .days li {width: 12.5%;}
+          .days li .active {padding: 2px;}
+        }
+
+        @media screen and (max-width: 290px) {
+          .weekdays li, .days li {width: 12.2%;}
+        }
+    </style>
+
+    <div style="display: none">
+        <input type="hidden" id="eventCharacterLimit" value="20" />
+
+        <input name="ctl00$ContentPlaceHolder1$DocumentReportLink" type="button" id="DocumentReportLink" class="btn btn-success" value=" Report Documents" onclick="javascript: window.location.href = &#39;./admin/ReportDocuments.aspx&#39;;" />
+        <img src="../dashjs/img/add_icon.png" id="LoggedInStatusIcon" style="margin-top: 12px; margin-left: auto;" onclick="ShowStatusChangeModal();" />
+        <textarea name="ctl00$ContentPlaceHolder1$MessageBody" id="MessageBody" cols="100" rows="5"></textarea>
+        <input name="ctl00$ContentPlaceHolder1$MessageHeader" type="text" id="MessageHeader" />
+        
+        <select name="ctl00$ContentPlaceHolder1$UserList" id="UserList">
+	<option value="0">Select</option>
+
+</select>
+        <select name="ctl00$ContentPlaceHolder1$UserStatuses" id="UserStatuses">
+	<option value="0">Select</option>
+	<option value="1">Available - Building A</option>
+	<option value="7">Available - Building B</option>
+	<option value="8">Available - Building C</option>
+	<option value="3">Break</option>
+	<option value="2">In meeting</option>
+	<option value="4">Lunch</option>
+	<option value="5">Scheduled Time Off</option>
+	<option value="6">Sick</option>
+
+</select>
+    </div>
+
+    <!--  ///// START CONTENT //////////////////////////////////////// -->
+    <div class="page-content-wrapper">
+        <div class="page-content">
+
+            <!-- start container -->
+            <div class="row">
+
+
+                <!-- start column 1 -->
+                <div class="col-md-6">
+
+                    <!-- start title-->
+                    <h3 class="page-title page-title-homepage">Welcome, Admin!</h3>
+                    <!-- end title -->
+
+
+                    <!-- start -->
+                    <div class="portlet light bordered" id="objectives-container">
+
+                        <!-- start header -->
+                        <div class="portlet-title">
+                            <div class="caption">
+                                <span class="caption-subject bold uppercase">TASKS</span>
+                            </div>
+                        </div>
+                        <!-- end header -->
+
+
+                        <!-- start chart -->
+                        <div class="portlet-body" style="position: relative;">
+
+                            <div class="btn-group my-team-switch" data-toggle="buttons">
+                                <label class="btn btn-default active withTooltip my-toggle" data-original-title="Transparency chart reflects Tasks and Objectives where you are the Assignee (owner)">
+                                    <input type="radio" name="myTeam" value="my" class="toggle">
+                                    My
+                                </label>
+                                <label class="btn btn-default withTooltip team-toggle" data-original-title="Transparency chart reflects Tasks and Objectives where you are assigned as a Viewer.  These Tasks and Objectives may belong to users who report to you or members of your project teams and task forces.">
+                                    <input type="radio" name="myTeam" value="team" class="toggle">
+                                    Team
+                                </label>
+                            </div>
+
+                            
+
+                            <!-- DEVELOPER NOTICE: this is your chart -->
+
+                            <!-- Your chart javascript numbers will appear at the bottom -->
+
+                            <div class="row  no-margin" style="display:none;">
+                                <div class="alert alert-info top-padding col-md-6">
+                                    <strong id="info-msg-chart"></strong>
+                                </div>
+                            </div>
+                            <!--<div id="my_tasks" class="chart" ></div>-->
+
+                            <!--grafico viejo-->
+                            <div class="my_tasks" class="chart" style="height: 450px;">
+                                
+                                <div id="piechart" style="height: 70%; width: 100%">
+                                </div>
+
+                                <!--
+                                    <div id="chart_div" style="width: 700px; height: 500px;" style="display: none">
+                                        Loading &nbsp
+                                        <img src="img/ajax-loader.gif" />
+                                    </div>
+                                        -->
+                                <!--<input id="ChartSelector" type="checkbox" name="teamchart" value="1" />-->
+                                
+                                <div style="clear: both;"></div>
+                                <br />
+                            </div>
+
+
+
+                            <!-- Your chart javascript numbers will appear at the bottom -->
+
+
+                        </div>
+                        <!-- end chart -->
+
+                    </div>
+                    <!-- end -->
+
+
+                </div>
+                <!-- end column 1 -->
+
+
+                <!-- start column 2 -->
+                <div class="col-md-6">
+
+                    <!-- start title-->
+                    <h3 class="page-title page-title-homepage"></h3>
+                    <!-- end title -->
+
+                    <div class="portlet light bordered" style="display: none;">
+                        <div class="row homepage-quick-icons">
+                            <!-- start email -->
+                            <div class="col-md-3 text-center" style="display:none;">
+                                <a href="#" id="startZoomMeeting"><i class="fa fa-video-camera"></i>Start Meeting</a>
+                            </div>
+                             <div class="col-md-3 text-center">
+                                <a href="/dashjs/TemplateTasks.aspx?assignable=true"><i class="fa fa-cogs"></i>Opportunities</a>
+                            </div>
+                            <!-- start leaderboard -->
+                            <div class="col-md-1 text-center">
+                                <a href="/dashjs/leaderboard.aspx"><i class="fa fa-trophy"></i></a>
+                            </div>
+                            <!-- start website -->
+                            <div class="col-md-1 text-center">
+                                <a href="http://www.manageupprm.com" id="websiteLink" class="open-new-window"><i class="fa fa-globe"></i></a>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <a href="http://www.jointcommission.org/report_a_complaint.aspx" id="customLink" class="open-new-window"><i class='fa fa-envelope'></i>Patient Safety Reporting</a>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- start SQUEEZE -->
+                    
+                    <!-- end SQUEEZE -->
+                    
+                    <!-- Calendar -->
+                    <div class="portlet light bordered squeeze">
+                        <div class="month">      
+                          <ul>
+                            <li class="prev">&#10094;</li>
+                            <li class="next">&#10095;</li>
+                            <li>
+                              August<br>
+                              <span style="font-size:18px">2021</span>
+                            </li>
+                          </ul>
+                        </div>
+
+                        <ul class="weekdays">
+                          <li>Mo</li>
+                          <li>Tu</li>
+                          <li>We</li>
+                          <li>Th</li>
+                          <li>Fr</li>
+                          <li>Sa</li>
+                          <li>Su</li>
+                        </ul>
+
+                        <ul class="days">  
+                          <li>1</li>
+                          <li>2</li>
+                          <li>3</li>
+                          <li>4</li>
+                          <li>5</li>
+                          <li>6</li>
+                          <li>7</li>
+                          <li>8</li>
+                          <li>9</li>
+                          <li><span class="active">10</span></li>
+                          <li>11</li>
+                          <li>12</li>
+                          <li>13</li>
+                          <li>14</li>
+                          <li>15</li>
+                          <li>16</li>
+                          <li>17</li>
+                          <li>18</li>
+                          <li>19</li>
+                          <li>20</li>
+                          <li>21</li>
+                          <li>22</li>
+                          <li>23</li>
+                          <li>24</li>
+                          <li>25</li>
+                          <li>26</li>
+                          <li>27</li>
+                          <li>28</li>
+                          <li>29</li>
+                          <li>30</li>
+                          <li>31</li>
+                        </ul>
+                    </div>
+                    <!-- End Calendar -->
+
+                </div>
+                <!-- END EXAMPLE TABLE PORTLET-->
+
+            </div>
+
+            <!-- TASKS Row -->
+            <div class="row">
+                <div class="col-md-12">
+
+                    <!-- BEGIN TABBED PORTLET -->
+                    <div class="portlet light bordered">
+
+                        <!-- start taps TOP -->
+                        <div class="portlet-title tabbable-line" style="border: none;">
+                            
+                            <div class="caption" style="border-bottom: 2px solid #959595; width: 100%; margin-bottom: 10px">
+                                <span class="caption-subject bold uppercase">TASKS</span>
+                            </div>
+                            <!-- start -->
+                            <ul class="nav nav-tabs home-tabs nav-justified" id="task-tabs">
+
+                                <!-- tab 1 -->
+                                <li class="active withTooltip" data-action="Urgent" data-team="false" data-original-title="These are urgent items where you are the Assignee (owner)">
+                                    <a href="#tasks_tab_1" data-toggle="tab">
+                                        <i class="fa fa-user"></i>
+                                        Urgent </a>
+                                </li>
+
+                                <!-- tab 2 -->
+                                <li data-action="Urgent" data-team="true" class="withTooltip" data-original-title="These are urgent items where you are assigned as a Viewer">
+                                    <a href="#tasks_tab_2" data-toggle="tab">
+                                        <i class="fa fa-users"></i>
+                                        Urgent </a>
+                                </li>
+
+                                <!-- tab 3 -->
+                                <li data-action="All" data-team="false" class="withTooltip" data-original-title="These are all the items where you are the Assignee (owner)">
+                                    <a href="#tasks_tab_3" data-toggle="tab">
+                                        <i class="fa fa-user"></i>
+                                        All </a>
+                                </li>
+
+                                <!-- tab 4 -->
+                                <li data-action="All" data-team="true" class="withTooltip" data-original-title="These are all the items where you are assigned as a Viewer">
+                                    <a href="#tasks_tab_4" data-toggle="tab">
+                                        <i class="fa fa-users"></i>
+                                        All </a>
+                                </li>
+
+                                <!-- tab 5 -->
+                                <li data-action="SubmittedForApproval" data-team="false" class="withTooltip" data-original-title="These are items that you have submitted for approval">
+                                    <a href="#tasks_tab_5" data-toggle="tab">Sub for Approval </a>
+                                </li>
+
+                                <!-- tab 6 -->
+                                <li data-action="ApprovalRequests" data-team="false" class="withTooltip" data-original-title="These are items that other users submitted to you for your approval.">
+                                    <a href="#tasks_tab_6" data-toggle="tab">Approval Req </a>
+                                </li>
+
+                            </ul>
+                        </div>
+                        <!-- end taps TOP -->
+
+
+
+                        <!-- ////////////////////// CONTENT ///////////////////////////////////////////// -->
+                        <div class="portlet box">
+                            <div class="portlet-body">
+                                <div class="tab-content" id="task-tabs-content">
+
+
+
+                                    <!-- ////////////////////// START CONTENT TAB 1 ///////////////////////////////////////////// -->
+                                    <div class="tab-pane active" id="tasks_tab_1">
+
+                                        <table class="table table-striped table-bordered table-hover" id="table_my_urgent_tasks">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name </th>
+                                                    <th>Category </th>
+                                                    <th>Due</th>
+                                                    <th>Progress</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+                                    <!-- ////////////////////// END CONTENT TAB 1 ///////////////////////////////////////////// -->
+
+
+
+                                    <!-- ////////////////////// START CONTENT TAB 2 ///////////////////////////////////////////// -->
+                                    <div class="tab-pane" id="tasks_tab_2">
+
+                                        <table class="table table-striped table-bordered table-hover" id="table_team_urgent_tasks">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name </th>
+                                                    <th>Owner </th>
+                                                    <th>Category </th>
+                                                    <th>Due</th>
+                                                    <th>Progress</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+                                    <!-- ////////////////////// END CONTENT TAB 2 ///////////////////////////////////////////// -->
+
+                                    
+                                    <!-- ////////////////////// START CONTENT TAB 3 ///////////////////////////////////////////// -->
+                                    <div class="tab-pane" id="tasks_tab_3">
+
+                                        <table class="table table-striped table-bordered table-hover" id="table_my_all_tasks">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name </th>
+                                                    <th>Category </th>
+                                                    <th>Due</th>
+                                                    <th>Progress</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+                                    <!-- ////////////////////// END CONTENT TAB 3 ///////////////////////////////////////////// -->
+
+
+
+                                    <!-- ////////////////////// START CONTENT TAB 4 ///////////////////////////////////////////// -->
+                                    <div class="tab-pane" id="tasks_tab_4">
+
+                                        <table class="table table-striped table-bordered table-hover" id="table_team_all_tasks">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name </th>
+                                                    <th>Owner </th>
+                                                    <th>Category </th>
+                                                    <th>Due</th>
+                                                    <th>Progress</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+                                    <!-- ////////////////////// END CONTENT TAB 4 ///////////////////////////////////////////// -->
+
+
+
+                                    <!-- ////////////////////// START CONTENT TAB 5 ///////////////////////////////////////////// -->
+                                    <div class="tab-pane" id="tasks_tab_5">
+
+                                        <table class="table table-striped table-bordered table-hover" id="table_sub_for_approval">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name </th>
+                                                    <th>Approver </th>
+                                                    <th>Due</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+                                    <!-- ////////////////////// END CONTENT TAB 5 ///////////////////////////////////////////// -->
+
+
+                                    <!-- ////////////////////// START CONTENT TAB 6 ///////////////////////////////////////////// -->
+                                    <div class="tab-pane" id="tasks_tab_6">
+
+                                        <table class="table table-striped table-bordered table-hover" id="table_approval_required">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name </th>
+                                                    <th>Owner </th>
+                                                    <th>Due</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            </tbody>
+                                        </table>
+
+                                    </div>
+                                    <!-- ////////////////////// END CONTENT TAB 6 ///////////////////////////////////////////// -->
+
+
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ////////////////////// END CONTENT ///////////////////////////////////////////// -->
+
+
+                    </div>
+                </div>
+
+            </div>
+            <!-- End TASKS Row -->
+
+        </div>
+        <!--  ///// END CONTENT //////////////////////////////////////// -->
+
+    </div>
+    <!-- END CONTAINER -->
+
+
+        </div>
+
+        <!--  ///// START FOOTER //////////////////////////////////////// -->
+        <div id="FooterContainer" class="page-footer">
+            <div class="page-footer-inner">
+                <a class="open-new-window" href="http://www.manageupprm.com/terms-of-use/">Terms of Service</a> |
+		        <a class="open-new-window" href="http://www.manageupprm.com/privacy-policy/">Privacy Guidelines</a> |
+		        <a class="open-new-window" href="http://www.manageupprm.com/about-us">About BMBUBU</a> |
+		        <a class="open-new-window" href="mailto:info@manageupprm.com">Contact Us</a> |
+		&copy; 2015 BMBUBU |
+                <span id="version">1.2.0.0</span>
+            </div>
+
+            
+        </div>
+        <!--  ///// END FOOTER //////////////////////////////////////// -->
+
+        <div id="full-screen-modal" class="modal fade bs-modal-lg" aria-hidden="true">
+            <div class="modal-dialog modal-full">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        <h4 class="modal-title"></h4>
+                    </div>
+                    <div class="modal-body" style="min-height: 100px;">
+                        <iframe src="" frameborder="0" width="98%"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="help-video-modal" class="modal fade" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        <h4 class="modal-title"></h4>
+                    </div>
+                    <div class="modal-body" style="min-height: 100px;">
+                        <iframe src="" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="product-updates-modal" class="modal fade bs-modal-lg modal-scroll" aria-hidden="true" style="z-index: 11000">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        
+                        <h2 class="product-updates-modal-title">
+                            <img src="/_ima/logo-blue2.png" class="product-updates-header-logo" /> 
+                            <small><b class="product-updates-version"></b>: </small>
+                            <span id="product-updates-title"></span>
+                        </h2>
+                    </div>
+                    <div class="modal-body">
+                        <div id="product-updates-error-container">
+
+                        </div>
+                        <div class="product-updates-description-container">
+                            
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="product-updates-navigation-buttons">
+                            <button type="button" class="btn btn-xs btn-info product-update-navigation-button" id="product-updates-previous-version-button">
+                                <i class="fa fa-caret-left"></i>
+                                <span class="product-updates-previous-version"></span>
+                            </button>
+                            <button type="button" class="btn btn-xs btn-info product-update-navigation-button" id="product-updates-next-version-button">
+                                <i class="fa fa-caret-right"></i> 
+                                <span class="product-updates-next-version"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tips-modal" class="modal fade bs-modal-lg modal-scroll" aria-hidden="true" style="z-index: 11000">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        
+                        <h2 class="tips-modal-title">
+                            <img src="/_ima/logo-blue2.png" class="tips-header-logo" /> 
+                            <span id="tips-title"></span>
+                        </h2>
+                    </div>
+                    <div class="modal-body">
+                        <div id="tips-error-container">
+
+                        </div>
+                        <div class="tips-description-container">
+                            
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="tips-navigation-buttons">
+                            <div class="col-md-1 col-md-offset-5">
+                                <button type="button" class="btn btn-xs btn-info tip-navigation-button" id="tips-previous-button">
+                                    <i class="fa fa-caret-left"></i>
+                                    <span class="tips-previous-version">Previous</span>
+                                </button>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-xs btn-info tip-navigation-button" id="tips-next-button">
+                                    <i class="fa fa-caret-right"></i> 
+                                    <span class="tips-next-version">Next</span>
+                                </button>
+                            </div>
+                            <div class="col-md-5 pull-right show-tips-checkbox-container">
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="show-tips-checkbox" /> Show me tips of the week when I log in
+                                    </label> 
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+    <div id="create-meeting-modal" class="modal fade" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                    <h3>Start Zoom Meeting</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="form" role="form">
+                        <div class="form-body">
+                            <div class="row topic-container">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label class="control-label col-md-3">Topic</label>
+                                        <div class="col-md-9">
+                                            <input type="text" class="topic form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                
+                                <a href="" id="startRealMeeting" class="open-full-screen-modal">Please click here to start your meeting</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="button" class="btn btn-success" value="Start" id="start-meeting" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $('#startZoomMeeting').on('click', function () {
+                $('#create-meeting-modal').modal('show');
+                return false;
+            });
+            $('#startRealMeeting').hide();
+
+            $('#start-meeting').on('click', function () {
+                var data = { topic: $('#create-meeting-modal .topic').val() };
+                callWebService({
+                    url: '/ManageUpWebService.asmx/StartZoomMeeting',
+                    data: JSON.stringify(data),
+                    blockTarget: '#create-meeting-modal .modal-content',
+                    success: function (result) {
+                        //$('#create-meeting-modal').modal('hide');
+                        $('#create-meeting-modal .topic-container, #start-meeting').hide();
+                        $('#startRealMeeting').prop('href', result.d).trigger('click');
+                        $('#create-meeting-modal').modal('hide');
+                    }
+                });
+
+                return false;
+            });
+        });
+    </script>
+
+
+    <div id="training-modal" class="modal fade bs-modal-lg modal-scroll">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <div>
+                            <div class="product-training-welcome-header">
+                                <img src="/_ima/ManageUpLogo.png" />
+                                <h1>Welcome <span class="product-training-username">Admin Admin</span></h1>
+                                <h3>Let's get started!!</h3>
+                            </div>
+                            <hr />
+                            <div class="product-training-content">
+                                <h5>
+                                    <b>Product Training</b>  
+                                    <br />
+                                    <br />
+                                    You can access product training via our help desk.  Access that through the “HELP” button under your profile.
+                                </h5>
+                                <img src="/dashjs/img/training-image-1.png" class="thumbnail"/>
+                                <hr class="small-divider" />
+                                <h5>
+                                    <b>In-product Training</b>  
+                                    <br />
+                                    <br />
+                                    We also embedded training videos and tooltips throughout the product for real-time help access.
+                                </h5>
+                                <img src="/dashjs/img/training-image-2b.png" class="thumbnail" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-danger btn" data-dismiss="modal" aria-hidden="true">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        
+
+<script type="text/javascript">
+    function ShowVimeoVideo(url) {
+        var VimeoPlayer = $('#vimeoModalPlayer');
+        VimeoPlayer.attr('width', 500);
+        VimeoPlayer.attr('height', 281);
+        VimeoPlayer.attr('frameborder', 0);
+        VimeoPlayer.attr('src', url);
+
+        $('.modal:visible').modal('hide');
+
+        $("#VimeoModalPlayer").modal('show');
+    };
+
+    function PlayVimeo(url) {
+        ShowVimeoVideo(url);
+    };
+
+    $(document).ready(function () {
+        $('#VimeoModalPlayer').on('hide.bs.modal', function () {
+            console.log('closed');
+            $('#vimeoModalPlayer').attr('src', '');
+        });
+    });
+
+</script>
+
+<div id="VimeoModalPlayer" class="modal fade" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="vimeoModalPlayer" src="" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+        <script type="text/x-jquery-tmpl" id="notification-row-content">
+            <li>
+                <a href="${link}">
+                    <!-- use the link to the task for example -->
+                    <span class="time">${friendlyTime}</span>
+                    <span class="details">
+                        <span class="label label-sm label-icon label-success" <i class="fa ${Icon}"></i>">
+                            <i class="fa ${Icon}"></i>
+                            <!-- we can use different types => fa-bell-o fa-bolt fa-bullhorn -->
+                        </span>
+                        ${EventDescription}</span>
+                </a>
+            </li>
+
+        </script>
+
+    </form>
+</body>
+</html>

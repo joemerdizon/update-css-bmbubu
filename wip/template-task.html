@@ -1,0 +1,1734 @@
+
+
+
+<!DOCTYPE html>
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>
+
+</title>
+
+
+    <script>
+        function loadNotifications() {
+            var cont = 0;
+            var i;
+            for (i = 0; i < notifications.length; i++) {
+                if (notifications[i].Sent == false) {
+                    cont = cont + 1;
+                }
+            }
+
+            $('#ulNotifications').html($('#notification-row-content').tmpl(notifications));
+            $('#pendingNotifications').html(cont.toString());
+
+            if (cont != 0) {
+                $('#notificationAmount').html(cont.toString());
+                $('#spanBadgeIcon').addClass('badge');
+                $('#spanBadgeIcon').addClass('badge-default');
+            }
+        }
+
+        function doOpenNotifications() {
+            //$('#pendingNotifications').html('0');
+            //$('#notificationAmount').html('0');
+
+            var i;
+            var strIds = '';
+
+            for (i = 0; i < notifications.length; i++) {
+                strIds = strIds + ',' + notifications[i].NotificationLogId;
+            }
+
+            var ids = "{ 'notificationIds': '" + strIds + "' }";
+
+            callWebService({ url: '/ManageUPWebService.asmx/MarkNotificationsAsSeen', data: ids}, true);
+        }
+
+        function setSection(section) {
+            var sectionElement = document.getElementById(section);
+            if (sectionElement) {
+                sectionElement.className = 'active';
+            }
+        };
+
+        function setSubSection(subsection) {
+            if (!(subsection instanceof jQuery) && subsection != '') {
+                subsection = $('.' + subsection);
+            };
+
+            if (!!subsection && subsection.length) {
+                subsection.parent().addClass('active').closest('.sub-menu').show().siblings('a').find('span').addClass('open').closest('li').addClass('open');
+            };
+        };
+
+        function logoff() {
+            //$('#logout-modal').modal('show');
+            window.location.href = '/logincontroller.aspx?ac=logoff';
+            return false;
+        };
+
+        function UpdateStatusChange(status) {
+            var DTO = { 'StatusID': parseInt(status) };
+
+            $.ajax({
+                type: "POST",
+                url: "/ManageUPWebService.asmx/UpdateAvailStatus",
+                async: true,
+                data: JSON.stringify(DTO),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                failure: function (data) {
+                    alert('error changing status');
+                },
+                success: function (data) {
+                    setStatusStyle(data.d);
+                },
+            });
+        }
+
+        function setStatusStyle(status) {
+            if (status == '../dashjs/img/delete_icon.png') {
+                $('#labStatusDescription').html('Unavailable');
+                $('#statusContainer1').addClass('red');
+                $('#statusContainer1').removeClass('green');
+                $('#statusContainer2').addClass('fa-minus');
+                $('#statusContainer2').removeClass('fa-plus');
+            }
+            else {
+                $('#labStatusDescription').html('Available');
+                $('#statusContainer1').addClass('green');
+                $('#statusContainer1').removeClass('red');
+                $('#statusContainer2').removeClass('fa-minus');
+                $('#statusContainer2').addClass('fa-plus');
+
+            }
+
+
+        }
+        
+        function loadDefaultImage(element) {
+            element.onerror = "";
+            element.src = "https://localhost:44329/dashjs/"
+            return true;
+        }
+
+
+        //Product Updates Functions
+        function loadProductUpdate(productUpdateID, callback) {
+            //Clear the error container
+            $("#product-updates-error-container").html("");
+
+            //If the ProductUpdateID is null, it will retrieve the most recent one
+            var data = {
+                productUpdateID: productUpdateID ? productUpdateID : ""
+            }
+
+            call('/ManageUPWebService.asmx/GetProductUpdate', JSON.stringify(data), function (response) {
+                productUpdate = response.d;
+
+                if (productUpdate) {
+                    //Load Current Update
+                    $(".product-updates-version").text(productUpdate.Version);
+                    $("#product-updates-title").text(productUpdate.Title);
+                    $(".product-updates-description-container").html(productUpdate.Description);
+
+
+                    //Load Previous Update
+                    if (productUpdate.PreviousProductUpdateID) {
+                        $("#product-updates-previous-version-button").prop('disabled', false);
+                        $("#product-updates-previous-version-button .fa-caret-left").show();
+                        $("#product-updates-previous-version-button").data("productUpdateID", productUpdate.PreviousProductUpdateID);
+                        $(".product-updates-previous-version").text(productUpdate.PreviousProductUpdateVersion);
+                    } else {
+                        $("#product-updates-previous-version-button").prop('disabled', true);
+                        $("#product-updates-previous-version-button .fa-caret-left").hide();
+                        $("#product-updates-previous-version-button").removeData("productUpdateID");
+                        $(".product-updates-previous-version").text(productUpdate.Version);
+                    }
+
+                    //Load Next Update
+                    if (productUpdate.NextProductUpdateID) {
+                        $("#product-updates-next-version-button").prop('disabled', false);
+                        $("#product-updates-next-version-button .fa-caret-right").show();
+                        $("#product-updates-next-version-button").data("productUpdateID", productUpdate.NextProductUpdateID);
+                        $(".product-updates-next-version").text(productUpdate.NextProductUpdateVersion);
+                    } else {
+                        $("#product-updates-next-version-button").prop('disabled', true);
+                        $("#product-updates-next-version-button .fa-caret-right").hide();
+                        $("#product-updates-next-version-button").removeData("productUpdateID");
+                        $(".product-updates-next-version").text(productUpdate.Version);
+                    }
+
+                    //In case there's only ONE ProductUpdate, we need to hide one of the navigation buttons
+                    if (!productUpdate.NextProductUpdateID && !productUpdate.PreviousProductUpdateID) {
+                        $("#product-updates-next-version-button").hide();
+                    } else {
+                        $("#product-updates-next-version-button").show();
+                    }
+
+                    //If it's not the default product update, we scroll up the modal
+                    if (productUpdateID) {
+                        $('#product-updates-modal .modal-body').slimScroll({ scrollTo: '0px' });
+                    }
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no Product Updates");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#product-updates-error-container"), "An error ocurred while retrieving the update information.");
+            });
+        }
+
+        //Tips of the Week Functions
+        function loadTip(tipID, callback) {
+            //Clear the error container
+            $("#tips-error-container").html("");
+
+            //If the tipID is null, it will retrieve the most recent one
+            var data = {
+                tipID: tipID ? tipID : ""
+            }
+
+            call('/ManageUPWebService.asmx/GetTip', JSON.stringify(data), function (response) {
+                tip = response.d;
+
+                if (tip) {
+                    //Load tip content
+                    loadTipContent(tip);
+
+                    //If it's not the default Tip, we scroll up the modal
+                    if (tipID) {
+                        $('#tips-modal .modal-body').slimScroll({ scrollTo: '0px' });
+                    }
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no tips of the week");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+
+        function loadRandomTip(callback) {
+            //Clear the error container
+            $("#tips-error-container").html("");
+
+            call('/ManageUPWebService.asmx/GetRandomTip', null, function (response) {
+                tip = response.d;
+
+                if (tip) {
+                    //Load tip content
+                    loadTipContent(tip);
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no tips of the week");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+
+        function loadTipContent(tip) {
+            //Load Current Tip
+            $("#tips-title").text(tip.Title);
+            $(".tips-description-container").html(tip.Description);
+
+            //Load Previous Tip
+            if (tip.PreviousTipID) {
+                $("#tips-previous-button").prop('disabled', false);
+                $("#tips-previous-button .fa-caret-left").show();
+                $("#tips-previous-button").data("tipID", tip.PreviousTipID);
+            } else {
+                $("#tips-previous-button").prop('disabled', true);
+                $("#tips-previous-button .fa-caret-left").hide();
+                $("#tips-previous-button").removeData("tipID");
+            }
+
+            //Load Next Tip
+            if (tip.NextTipID) {
+                $("#tips-next-button").prop('disabled', false);
+                $("#tips-next-button .fa-caret-right").show();
+                $("#tips-next-button").data("tipID", tip.NextTipID);
+            } else {
+                $("#tips-next-button").prop('disabled', true);
+                $("#tips-next-button .fa-caret-right").hide();
+                $("#tips-next-button").removeData("tipID");
+            }
+
+            //In case there's only ONE Tip, we need to hide one of the navigation buttons
+            if (!tip.NextTipID && !tip.PreviousTipID) {
+                $("#tips-next-button").hide();
+            } else {
+                $("#tips-next-button").show();
+            }
+
+            //Show subscription checkbox
+            $(".show-tips-checkbox-container").show();
+        }
+
+        function loadTipOfTheWeekSubscription() {
+            call('/ManageUPWebService.asmx/IsUserSubscribed', null, function (response) {
+                isSubscribed = response.d;
+
+                if (isSubscribed) {
+                    $("#show-tips-checkbox").prop('checked', true);
+                    $.uniform.update('#show-tips-checkbox');
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+    </script>
+
+
+    <!--new includes-->
+    <meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge" /><meta content="width=device-width, initial-scale=1.0" name="viewport" /><meta http-equiv="Content-type" content="text/html; charset=utf-8" /><link rel="apple-touch-icon" sizes="57x57" href="/_ima/apple-touch-icon-57x57.png" /><link rel="apple-touch-icon" sizes="60x60" href="/_ima/apple-touch-icon-60x60.png" /><link rel="apple-touch-icon" sizes="72x72" href="/_ima/apple-touch-icon-72x72.png" /><link rel="apple-touch-icon" sizes="76x76" href="/_ima/apple-touch-icon-76x76.png" /><link rel="apple-touch-icon" sizes="114x114" href="/_ima/apple-touch-icon-114x114.png" /><link rel="apple-touch-icon" sizes="120x120" href="/_ima/apple-touch-icon-120x120.png" /><link rel="apple-touch-icon" sizes="144x144" href="/_ima/apple-touch-icon-144x144.png" /><link rel="apple-touch-icon" sizes="152x152" href="/_ima/apple-touch-icon-152x152.png" /><link rel="apple-touch-icon" sizes="180x180" href="/_ima/apple-touch-icon-180x180.png" /><link rel="icon" type="image/png" href="/_ima/favicon-32x32.png" sizes="32x32" /><link rel="icon" type="image/png" href="/_ima/android-chrome-192x192.png" sizes="192x192" /><link rel="icon" type="image/png" href="/_ima/favicon-96x96.png" sizes="96x96" /><link rel="icon" type="image/png" href="/_ima/favicon-16x16.png" sizes="16x16" /><link rel="shortcut icon" href="/_ima/favicon.ico" /><link rel="manifest" href="/_ima/manifest.json" /><meta name="msapplication-TileColor" content="#2d89ef" /><meta name="msapplication-TileImage" content="/_ima/mstile-144x144.png" /><meta name="theme-color" content="#ffffff" />
+
+    <!-- global -->
+
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700&amp;subset=all" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/uniform/css/uniform.default.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-summernote/summernote.css" rel="stylesheet" type="text/css" />
+
+    <!-- BEGIN PAGE LEVEL STYLES -->
+    <link rel="stylesheet" type="text/css" href="/assets/global/plugins/select2/select2.css" /><link rel="stylesheet" type="text/css" href="/assets/global/plugins/datatables/extensions/ColReorder/css/dataTables.colReorder.min.css" /><link rel="stylesheet" type="text/css" href="/assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.css" />
+
+    <!-- theme -->
+    <link id="style_components" href="/assets/global/css/components-rounded.css" rel="stylesheet" type="text/css" /><link href="/assets/global/css/plugins.css" rel="stylesheet" type="text/css" /><link href="/assets/admin/layout/css/layout.css" rel="stylesheet" type="text/css" /><link id="style_color" href="/assets/admin/layout/css/themes/darkblue.css" rel="stylesheet" type="text/css" /><link href="/assets/admin/layout/css/custom.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-datepicker/css/datepicker3.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-datetimepicker/css/bootstrap-datetimepicker.css" rel="stylesheet" /><link href="/dashjs/css/validationEngine.jquery.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-toastr/toastr.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/emojione/assets/css/emojione.css" rel="stylesheet" />
+
+    <!-- begin javascript load (will reduce load-time being at the bottom) -->
+
+    <!-- BEGIN CORE PLUGINS -->
+    <!--[if lt IE 9]>
+<script src="/assets/global/plugins/respond.min.js"></script>
+<script src="/assets/global/plugins/excanvas.min.js"></script> 
+<![endif]-->
+    <script src="/assets/global/plugins/jquery.min.js" type="text/javascript"></script>
+
+
+    <!-- IMPORTANT! Load jquery-ui.min.js before bootstrap.min.js to fix bootstrap tooltip conflict with jquery ui tooltip -->
+    <script src="/assets/global/plugins/jquery-ui/jquery-ui.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-hover-dropdown/bootstrap-hover-dropdown.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.cokie.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/uniform/jquery.uniform.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-switch/js/bootstrap-switch.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-confirmation/bootstrap-confirmation.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script src="/assets/global/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.js"></script>
+    <script src="/assets/global/plugins/bootstrap-summernote/summernote.js"></script>
+    <script src="/assets/global/plugins/bootbox/bootbox.min.js"></script>
+    <script src="/assets/global/plugins/select.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.pulsate.min.js"></script>
+    <!-- END CORE PLUGINS -->
+
+    <!-- BEGIN PAGE LEVEL PLUGINS -->
+    <script src="/assets/global/scripts/metronic.js" type="text/javascript"></script>
+
+    <script type="text/javascript" src="/assets/global/plugins/select2/select2.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/media/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/TableTools/js/dataTables.tableTools.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/ColReorder/js/dataTables.colReorder.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/Scroller/js/dataTables.scroller.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/bootstrap-toastr/toastr.min.js"></script>
+    <script type="text/javascript" src="/dashjs/js/common.js"></script>
+    <script type="text/javascript" src="/dashjs/js/dynamicTab.js"></script>
+    <script type="text/javascript" src="/Scripts/jquery.tmpl.min.js"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.validationEngine.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.validationEngine-en.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.cookie.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/jquery-inputmask/jquery.inputmask.bundle.min.js"></script>
+    <script src="/assets/global/plugins/emojione/lib/js/emojione.js"></script>      
+
+    <!-- END PAGE LEVEL PLUGINS -->
+
+    <!-- BEGIN PAGE LEVEL SCRIPTS -->
+
+    <script src="/assets/global/plugins/fuelux/js/spinner.min.js" type="text/javascript"></script>
+    <script src="/assets/global/scripts/metronic.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/layout.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/quick-sidebar.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/demo.js" type="text/javascript"></script>
+    <script src="https://use.fonticons.com/dd7e0589.js"></script>
+    <!-- END PAGE LEVEL SCRIPTS -->
+
+
+    <!-- ON-PAGE SCRIPTS -->
+    <script>
+
+        // MY TASKS
+        // NOTE! BACKEND DATA HERE!!!!!!!
+        // NOTE! LINKS WILL BE LINKS TO RELATED PAGES
+
+
+        // pie relocation (listener)
+        function handlePieRelocation(event) {
+            window.location.href = event.dataItem.dataContext.url;
+        }
+
+
+        // tables 
+        var TableAdvanced = function () {
+            var initMyTasksTable = function () {
+
+                var table = $('#table_my_urgent_tasks');
+                var table_2 = $('#table_team_urgent_tasks');
+                var table_3 = $('#table_sub_for_approval');
+                var table_4 = $('#table_approval_required');
+
+                /* Fixed header extension: http://datatables.net/extensions/keytable/ */
+
+                var oTable = table.dataTable({
+                    "language": {
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var oTable_2 = table_2.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [3, "asc"]
+                    ]
+                });
+
+                var oTable_3 = table_3.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "aria": {
+                            "sortAscending": ": activate to sort column ascending",
+                            "sortDescending": ": activate to sort column descending"
+                        },
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var oTable_4 = table_4.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "aria": {
+                            "sortAscending": ": activate to sort column ascending",
+                            "sortDescending": ": activate to sort column descending"
+                        },
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var tableWrapper = $('#table_my_urgent_tasks_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_team_urgent_tasks_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_sub_for_approval_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_approval_required_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                tableWrapper.find('.dataTables_length select').select2(); // initialize select2 dropdown
+            }
+
+            return {
+
+                //main function to initiate the module
+                init: function () {
+                    if (!jQuery().dataTable) {
+                        return;
+                    }
+                    initMyTasksTable();
+                }
+            };
+        }();
+
+
+        // PAGE LOAD STARTS HERE
+        jQuery(document).ready(function () {
+
+            // initiate layout and plugins
+            Metronic.init(); // init metronic core components
+            Layout.init(); // init current layout
+            QuickSidebar.init(); // init quick sidebar
+            Demo.init(); // init demo features
+            TableAdvanced.init(); // required for this page
+
+
+            // user status change
+            $('#availability-handler li').click(function () {
+                var state = $(this).attr('rel');
+                var update_status = $(this).find('a').text();
+
+                // clear state
+                $('#status-handler span').text(update_status);
+                $('#availability-handler .availability-status').removeClass("green");
+                $('#availability-handler .availability-status').removeClass("red");
+
+                // set state
+                $('#availability-handler .availability-status').addClass(state);
+            });
+
+            loadNotifications();
+
+            //Product Updates Event Handlers
+            $("#product-updates-button").on("click", function () {
+                callback = function () { $("#product-updates-modal").modal("show"); };
+                loadProductUpdate(null, callback);
+            });
+
+            $(".product-update-navigation-button").on("click", function () {
+                var productUpdateID = $(this).data("productUpdateID");
+                
+                if (productUpdateID) {
+                    loadProductUpdate(productUpdateID);
+                }
+            });
+
+            //Tips of the Week Event Handlers
+            $("#tips-button").on("click", function () {
+                callback = function () { $("#tips-modal").modal("show"); };
+                loadRandomTip(callback);
+            });
+
+            $(".tip-navigation-button").on("click", function () {
+                var tipID = $(this).data("tipID");
+
+                if (tipID) {
+                    loadTip(tipID);
+                }
+            });
+
+            //Load tip of the week subscription checkbox
+            loadTipOfTheWeekSubscription();
+
+            $("#show-tips-checkbox").on("change", function () {
+                //alert("Subscribe or unsubscribe user!");
+                var subscribe = $(this).is(":checked");
+                call('/ManageUPWebService.asmx/SetTipsSubscription', JSON.stringify({ subscribe: subscribe }), function (response) {
+                    var response = response.d;
+
+                    if (response.Success) {
+                        var message = subscribe ? "You were successfully subscribed to tips of the week" : "You were successfully unsubscribed from tips of the week";
+                        showToastNotification(message, 'Tip of the Week');
+                    }
+                });
+            });
+        });
+    </script>
+    <script type="text/x-jquery-tmpl" id="msg-tmpl">
+        <div class="alert alert-dismissable">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true"></button>
+            <strong class="main-msg">{{html title}}</strong>
+            <ul class="error-list">{{html list}}</ul>
+        </div>
+    </script>
+
+    <!--end new includes-->
+    
+    <script src="../dashjs/js/fuelUx/scheduler.js"></script>
+
+    <script type="text/javascript">
+        var _lastType = $.cookie('TemplateTasksSelectedTab') ? $.cookie('TemplateTasksSelectedTab') : 'Favorites';
+        //var _lastType = 'Favorites';
+
+        var assignableContent = window.location.href.indexOf('assignable=true') > -1;
+        console.log('assignableContent');
+        console.log(assignableContent);
+
+        function assignable() {
+            assignableContent = true;
+        };
+
+        $(document).ready(function () {
+            if (_lastType == 'Favorites') {
+                $("#favorites-tab").addClass("active");
+                $("#all-tab").removeClass("active");
+            } else if (_lastType == 'All') {
+                $("#favorites-tab").removeClass("active");
+                $("#all-tab").addClass("active");
+            }
+
+            $(".nav-tabs li").on('shown.bs.tab', function (e) {
+                //var container = $($(e.target).attr("href"));
+
+                var type = $(this).data('action');
+                _lastType = type;
+                $.cookie('TemplateTasksSelectedTab', type);
+
+                InitializeTemplateTasks(type);
+                //getTasks(container, $(this).data('action'));
+
+            });
+
+            $('body').on('click', '.archive-unarchive-template-task-btn', function () {
+                var templateTaskID = $(this).data('templateTaskId');
+
+                call("/ManageUPWebService.asmx/ArchiveOrUnarchiveTemplateTask", JSON.stringify({ templateTaskID: templateTaskID }), function (response) {
+                    response = response.d;
+
+                    if (!response.Success) {
+                        bootbox.alert("An error occurred while trying to archive the selected tasks");
+                    } else {
+                        if (response.Data == 'SubmittedForApproval') {
+                            bootbox.alert("The template task was submitted for approval");
+                        } else if (response.Data == 'Updated') {
+                            bootbox.alert("The template task status was changed successfully");
+                        }
+                    }
+
+                    InitializeTemplateTasks(_lastType);
+                });
+            });
+
+            $('select').select2({ width: '100%' });
+            InitializeTemplateTasks(_lastType);
+
+        });
+
+        function doFavorite(taskId) {
+            var checkbox = $('#chkFav' + taskId);
+
+            var isChecked = checkbox.is(":checked");
+            var params = '{ "taskId": ' + taskId + ', "state": ' + isChecked + ' }';
+            var result = callActionOnServer('doFavorite', params, false, false);
+        }
+
+        function doAuditable(taskId) {
+
+            var checkbox = $('#chkAudit' + taskId);
+
+            var isChecked = checkbox.is(":checked");
+            var params = '{ "taskId": ' + taskId + ', "isAuditable": ' + isChecked + ' }';
+            call('TemplateTasks.aspx/doAuditable', params);
+        }
+
+        function doAssignable(taskId) {
+            var checkbox = $('#chkAssign' + taskId);
+
+            var isChecked = checkbox.is(":checked");
+            var params = '{ "taskId": ' + taskId + ', "isAssignable": ' + isChecked + ' }';
+            call('TemplateTasks.aspx/doAssignable', params);
+        }
+
+        function doInactive() {
+            InitializeTemplateTasks(_lastType);
+        }
+
+        var aspxPage = 'TemplateTasks.aspx';
+        function callActionOnServer(action, params, showLoading, hideLoading) {
+            var res;
+            if (showLoading) processLoading();
+
+            $.ajax({
+                type: "POST", url: aspxPage + "/" + action, data: params, contentType: "application/json; charset=utf-8", dataType: "json",
+                success: function (result) {
+                    res = result.d;
+                },
+                failure: function (response) {
+                    alert(response.d);
+                },
+                async: false
+            });
+
+            if (hideLoading) endProcessLoading();
+            return res;
+        }
+
+        function TemplateTaskDetail(taskID) {
+            var url = "../dashjs/AdddTask.aspx?TemplateTaskID=" + taskID;
+            $(location).attr('href', url);
+        };
+
+        function TemplateTaskView(taskID) {
+            var url = "../dashjs/ViewdTask.aspx?TemplateTaskID=" + taskID;
+            $(location).attr('href', url);
+        };
+
+        function InitializeTemplateTasks(category) {
+            var table = $('#TemplateTaskTable');
+
+            var checkbox = $('#ContentPlaceHolder1_chkInactive');
+            var includeInactive = checkbox.is(":checked");
+
+            var params = JSON.stringify({ category: category, includeInactive: includeInactive, onlyAssignable: assignableContent })
+            $.ajax({
+                dataType: 'json',
+                data: params,
+                contentType: "application/json; charset=utf-8",
+                type: "POST",
+                url: "../ManageUpWebService.asmx/GetTemplateTasksRows",
+                beforeSend: function () {
+                    table.hide();
+                    Metronic.blockUI({ target: '#main-portlet-tasks' });
+                },
+                success: function (msg) {
+
+                    if (table.hasClass('dataTable')) {
+                        table.DataTable().destroy();
+                    };
+
+                    table.find("tbody").empty();
+                    table.find("tbody").append(msg.d);
+
+                    table.find('tbody tr td:nth-child(2)').each(function (i, e) {
+                        applyTooltipIfTextIsTooLong($(e), 20, $('body'));
+                    });
+
+                    table.show();
+
+                    if (!$('#EditTemplate').length || assignableContent) {
+                        table.find('.edit-template-btn').hide();
+                    };
+
+                    //if (!$('#AssignPermission').length) {
+                    //table.find('.assign-template-btn').hide();
+                    //};
+
+                    var columnsVisible = [];
+                    $('#TemplateTaskTable thead tr th').each(function (i, el) {
+                        columnsVisible[i] = !$(this).hasClass('not-assignable');
+                    });
+
+                    table.DataTable({
+                        stateSave: true,
+                        "stateLoadParams": function (settings, data) {
+                            $.each(data.columns, function (i, el) {
+                                el.visible = columnsVisible[i] || !assignableContent;
+
+                            });
+                        },
+                        "columns": columnsVisible.map(function (visible) {
+                            return { visible: visible };
+                        })
+                    });
+
+                    Metronic.unblockUI('#main-portlet-tasks');
+                },
+                error: function (xhr, textStatus, error) {
+                    if (typeof console == "object") {
+                        console.log(xhr.status + "," + xhr.responseText + "," + textStatus + "," + error);
+                    }
+                }
+            });
+        };
+
+    </script>
+</head>
+<body class="page-header-fixed page-quick-sidebar-over-content">
+    <form method="post" action="./TemplateTasks.aspx" id="form1" class="form-horizontal">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+</div>
+
+
+<script type="text/javascript">
+//<![CDATA[
+ $(function() { setSection('liTasks'); }); $(function() { setSubSection('tasks_template'); });var mp_roleId = 4; var mp_clientId = 1;var notifications = [{"NotificationLogId":5908,"EventDate":"\/Date(1437456960090)\/","EventDescription":"There are changes on your team","UserId":0,"ObjectId":1,"ObjectType":"TE","Sent":true,"Color":"","Icon":"","friendlyTime":"2454 days ago","minutesAgo":3534193.3209004384,"EventDateAsString":"2015/07/21 13:36:00","link":"/dashjs/team.aspx"},{"NotificationLogId":5803,"EventDate":"\/Date(1437447700623)\/","EventDescription":"There are changes on the site settings","UserId":0,"ObjectId":0,"ObjectType":"  ","Sent":true,"Color":"","Icon":"","friendlyTime":"2454 days ago","minutesAgo":3534347.6453504385,"EventDateAsString":"2015/07/21 11:01:40","link":""},{"NotificationLogId":3845,"EventDate":"\/Date(1436765166867)\/","EventDescription":"A task has been assigned to you","UserId":0,"ObjectId":7625,"ObjectType":"TA","Sent":true,"Color":"#4392cb","Icon":" fa-bullhorn","friendlyTime":"2462 days ago","minutesAgo":3545723.2079504384,"EventDateAsString":"2015/07/13 13:26:06","link":"/dashjs/taskcontroller.aspx?TaskId=7625"},{"NotificationLogId":3842,"EventDate":"\/Date(1436765166337)\/","EventDescription":"A task has been assigned to you","UserId":0,"ObjectId":7622,"ObjectType":"TA","Sent":true,"Color":"#4392cb","Icon":" fa-bullhorn","friendlyTime":"2462 days ago","minutesAgo":3545723.2167837718,"EventDateAsString":"2015/07/13 13:26:06","link":"/dashjs/taskcontroller.aspx?TaskId=7622"}];//]]>
+</script>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="E2DBFB05" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="npn5cLbRCb3/dzZT/gHUjqWxPJBdU56j2hTmdarAxWytM1qr7I1AcSpQH5fFMj7csFOLmnHrbMuU7SFlRDw/fD1spVcpvcMEqnivyVV4GhqOyHI5ffzumOCiQ9b0qu+lMwJc/zxr/e54wn4mUcz+6iAImAH4Xqa6JG39GoHDdBLhNgcp9E1VloRqvpLkKYNs9B1g/+cUQuPQ0V2rxrVjjyyvWU4vsHlODYNqpqYkL92rMWcgEC+PGsRMZl0Wr9s8H9QLhRyyXHCXtJlzA9q5pQ==" />
+</div>
+
+
+        <!--  ///// START HEADER //////////////////////////////////////// -->
+        <div id="HeaderContainer" class="page-header navbar navbar-fixed-top">
+
+
+            <!-- start inner -->
+            <div class="page-header-inner">
+
+
+                <!-- logo -->
+                <div class="page-logo">
+                    <img src="img/20150608_14_SSGH%20logo%20-%20white.png" id="HeaderClientLogo" class="margin-top-5" height="90" />
+
+                    
+                    
+                </div>
+                <!-- end logo -->
+
+
+                <!-- right navigation -->
+                <div class="top-menu">
+
+                    <!-- right -->
+                    <ul class="nav navbar-nav pull-right">
+                        <li class="dropdown dropdown-extended dropdown-inbox">
+                            <a href="http://www.gmail.com" id="emailLink" class="dropdown-toggle open-new-window">
+                                <i class="icon-envelope-open"></i>
+                            </a>
+                        </li>
+                        
+                            <li class="dropdown dropdown-extended dropdown-notification" id="header_notification_bar">
+                                <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true" onclick="doOpenNotifications();" onmouseover="doOpenNotifications();">
+                                    <i class="icon-bell"></i>
+                                    <span id="spanBadgeIcon">
+                                        <span id="notificationAmount"></span></span>
+                                </a>
+
+                                <ul class="dropdown-menu">
+                                    <li class="external">
+                                        <h3 class="tooltips" data-original-title="Notifications on various alertable items. If your Administrator has granted access, you can customize your notification preferences under 'Settings'"><span class="bold">
+                                            <span id="pendingNotifications"></span>
+                                            pending</span> notifications</h3>
+                                        <a href="#" onclick="window.location = '/dashjs/notificationsHistory.aspx';">view all</a>
+                                    </li>
+                                    <li>
+                                        <ul class="dropdown-menu-list scroller" style="height: 250px;" data-handle-color="#637283" id="ulNotifications">
+
+
+                                            <!-- notification example -->
+                                            <!-- end -->
+
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </li>
+                        
+                        <li class="dropdown dropdown-user">
+
+                            <!-- start -->
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+
+                                <!-- DEVELOPER: Front-end User -->
+                                <img class="img-circle" src="https://localhost:44329/dashjs/img/adm.jpg" onerror="loadDefaultImage(this);" style="max-width: 50px; max-height: 29px" />
+                                <span class="username username-hide-on-mobile">Admin Admin<br />
+                                    (MD, Director)</span>
+                                <i class="fa fa-angle-down"></i>
+                            </a>
+                            <!-- end -->
+
+                            <!-- start dropdown -->
+                            <ul class="dropdown-menu dropdown-menu-default">
+                                <li><a href="/dashjs/admin/profile.aspx"><i class="fa fa-user"></i>Profile <i data-videoid='148097782' class='fa fa-play-circle help-video'></i></a></li>
+                                <li id="menuSettings"><a href="/dashjs/admin/settings.aspx"><i class="fa fa-cog"></i>Settings </a></li>
+                                <li><a href="/ZenDesk.ashx" class="open-new-window"><i class="fa fa-question-circle"></i>Help <i data-videoid='138959367' class='fa fa-play-circle help-video'></i></a></li>
+                                <li><a href="#" id="tips-button"><i class="fa fa-lightbulb-o"></i> Tip of the Week</a></li>
+                                <li class="divider"></li>
+                                <li><a href="#" id="product-updates-button"><i class="fa fa-exclamation-circle"></i> What's New?</a></li>
+                                <li class="divider"></li>
+                                <li><a href="#" onclick="logoff();"><i></i><strong>Log Out </strong></a></li>
+                            </ul>
+                            <!-- end dropdown -->
+
+                        </li>
+                    </ul>
+                    <!-- end right -->
+                </div>
+                <!-- end right navigation -->
+
+            </div>
+            <!-- end inner -->
+
+        </div>
+        <!--  ///// END HEADER //////////////////////////////////////// -->
+
+
+        <div class="clearfix"></div>
+
+        <div class="page-container">
+
+
+            <!--  ///// START SIDEBAR //////////////////////////////////////// -->
+            <div id="MainMenuBar" class="page-sidebar-wrapper">
+                <div class="page-sidebar navbar-collapse collapse">
+                    <ul class="page-sidebar-menu" data-keep-expanded="false" data-auto-scroll="true" data-slide-speed="200">
+                        <li class="sidebar-toggler-wrapper">
+                            <!-- SIDEBAR TOGGLER BUTTON -->
+                            <div class="sidebar-toggler tooltips" data-placement="bottom" data-original-title="Expands or minimizes the navigation bar"></div>
+                            <!-- END -->
+
+                        </li>
+
+
+                        <!-- start white status -->
+                        <li class="subnav-white-status" style="display: none;">
+
+                            <!-- start row -->
+                            
+                            <!-- end row -->
+
+                            <!-- start buttons -->
+                            <!-- DEVELOPER NOTE: availability-handler is to set green / red states -->
+                            
+
+                        </li>
+                        <!-- end white status -->
+
+
+                        <!-- 
+					DEVELOPER NOTES:
+					EXAMPLE OF ACTIVE STATE
+					NOTICE class="active"
+				 -->
+
+                        
+                                <li id="liChart">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-pie-chart"></i>
+                                        <span class="title">Chart</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='/dashjs/dashboardjsNew.aspx'>Main Chart</a></li></ul>
+                                </li>
+                            
+                                <li id="liCalendarView">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Calendar View</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='/dashjs/schedular.aspx'>Schedular</a></li></ul>
+                                </li>
+                            
+                                <li id="liTasks">
+                                    <a href="/dashjs/tasks.aspx">
+                                        <i class="fa fa-bullseye"></i>
+                                        <span class="title">Tasks</span>
+                                        <i data-videoid=138951095 class='fa fa-play-circle help-video pull-right'></i>
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li>
+                            <a href='javascript:;'>
+						        Create <span class='arrow'><i data-videoid='150270487' class='fa fa-play-circle help-video pull-right'></i></span>
+						    </a>
+                            <ul class='sub-menu'>
+                                <li><a class='tasks_create_personal' href='/dashjs/addptask.aspx'>Personal</a></li>
+                                <li><a class='tasks_create_adhoc' href='/dashjs/addtask.aspx'>Ad-Hoc</a></li>
+                                <li><a class='tasks_create_template' href='/dashjs/adddtask.aspx'>Template</a></li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href='javascript:;'>
+							    Status  <span class='badge badge-success'>19</span><span class='arrow'><i data-videoid='150271632' class='fa fa-play-circle help-video pull-right'></i></span> 
+					        </a>
+                            <ul class='sub-menu'>
+                                <li><a href='/dashjs/tasks.aspx?action=Urgent' data-selected='Urgent'>Urgent      <span class='badge badge-success'>19</span></a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=DueSoon' data-selected='DueSoon'>Due Soon    </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=New' data-selected='New'>New         </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=Completed' data-selected='Completed'>Completed   </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=All' data-selected='All'>All         </a></li>
+                            </ul>
+                        </li>
+
+                        <li><a href='/dashjs/tasks.aspx?action=Personal' data-selected='Personal'>Personal Tasks      <i data-videoid='150271800' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                        <li><a class='tasks_template' href='/dashjs/TemplateTasks.aspx'>Template Tasks    <i data-videoid='150271735' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                    </ul>
+                                </li>
+                            
+                                <li id="liReports">
+                                    <a href="/dashjs/admin/reportDocuments.aspx">
+                                        <i class="fa fa-pencil-square-o"></i>
+                                        <span class="title">Reports Templates</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    <ul class='sub-menu'>
+                                            <li><a href='/dashjs/admin/reportDocuments.aspx' class='documents_view'>View Template Reports <i data-videoid='148097884' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                                            <li><a href='/dashjs/admin/createreportdoc.aspx' class='documents_create'>Create Template Reports <i data-videoid='148096850' class='fa fa-play-circle help-video pull-right'></i></a></li>                                            
+                                            <li><a href='/dashjs/admin/mydocs.aspx' class='documents_generate'>Generate Reports <i data-videoid='148097136' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                                            <li><a href='/dashjs/AssignedReports.aspx' class='documents_assigned_reports'>Assigned Reports</a></li>
+                                            <li><a href='/dashjs/documents.aspx' class='documents_documents'>My Generated Reports</a></li>
+                                        </ul>
+                                </li>
+                            
+                                <li id="liTickets">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Tickets</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liApproval">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Approval</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        
+                                <li><a href='/dashjs/tasks.aspx?action=SubmittedForApproval' data-selected='SubmittedForApproval'>Submitted For Approval  <span class='badge badge-success'>0</span></a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=ApprovalRequests' data-selected='ApprovalRequests'>Approval Requests       </a></li>
+                            </ul>
+                                </li>
+                            
+                                <li id="liFiles">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Files</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liCommentsandNotes">
+                                    <a href="/dashjs/audit.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Comments and Notes</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liMarketPlace">
+                                    <a href="/dashjs/team.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Market Place</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liContacts">
+                                    <a href="/dashjs/leaderboard.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Contacts</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liSettings">
+                                    <a href="/dashjs/admin/users.aspx">
+                                        <i class="fa fa-cog"></i>
+                                        <span class="title">Settings</span>
+                                        <i data-videoid=148097593 class='fa fa-play-circle help-video pull-right'></i>
+
+                                        
+
+                                    </a>
+                                    <ul class='sub-menu'><li class='settings_clients'><a href="/dashjs/admin/clients.aspx">Clients</a></li>
+<li class='settings_daemon'><a href="/dashjs/admin/DaemonLogs.aspx">Daemon Status</a></li>
+<li class='settings_product_updates'><a href="/dashjs/admin/ProductUpdates.aspx">Product Updates</a></li>
+<li class='settings_tips'><a href="/dashjs/admin/Tips.aspx">Tips of the Week</a></li>
+<li class='settings_import'><a href="/dashjs/admin/importData.aspx">Import/Export Data</a></li>
+<li class='settings_users'><a href="/dashjs/admin/users.aspx">Users</a></li>
+<li class='settings_departments'><a href="/dashjs/admin/departments.aspx">Departments</a></li>
+<li class='settings_settings'><a href="/dashjs/admin/settings.aspx">Site settings</a></li>
+<li class='settings_categories'><a href="/dashjs/admin/categories.aspx">Categories and Subcategories</a></li>
+<li class='settings_permissions'><a href="/dashjs/admin/permissions.aspx">Permissions</a></li>
+<li class='settings_settings'><a href="/dashjs/admin/notifications.aspx">Notifications</a></li>
+<li class='settings_profile'><a href="/dashjs/admin/profile.aspx">My Profile</a></li>
+<li class='settings_linked_apps'><a href="/dashjs/admin/LinkedApps.aspx">Linked Apps</a></li>
+</ul>
+                                </li>
+                            
+                                <li id="liContentLibrary">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-book"></i>
+                                        <span class="title">Content Library</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liBackUp">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-database"></i>
+                                        <span class="title">BackUp</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liClientAdminTab">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-user"></i>
+                                        <span class="title">Client Admin Tab</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liWorkspace">
+                                    <a href="/dashjs/admin/createreportdoc.aspx">
+                                        <i class="fa fa-user"></i>
+                                        <span class="title">Workspace</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                        <!-- start (two-level) -->
+                        <!--                        <li id="liSupport">
+                            <a href="javascript:;">
+                                <i class="fa fa-cog"></i>
+                                <span class="title">Settings</span>
+                                <span class="arrow "></span>
+                            </a>
+
+                            <ul class="sub-menu">
+                                <li><a href="/dashjs/admin/users.aspx">Users</a></li>
+                                <li><a href="/dashjs/admin/departments.aspx">Departments</a></li>
+                                <li><a href="/dashjs/admin/roles.aspx">Roles</a></li>
+                            </ul>
+
+                        </li>
+                        -->
+                        <!-- end -->
+
+                    </ul>
+
+                </div>
+
+            </div>
+
+
+
+            
+    <div class="page-content-wrapper">
+        <div class="page-content">
+            <h3 id="ContentPlaceHolder1_PageTitle" class="hide-on-content-only page-title">Template Tasks
+                <small>standardized tasks with SQUEEZE points.</small>
+            </h3>
+
+            <div class="page-bar">
+                <ul class="page-breadcrumb">
+                    <li class="ms-hover">
+                        <i class="fa fa-home"></i>
+                        <a href="dashboardjsnew.aspx">Dashboard</a>
+                        <i class="fa fa-angle-right"></i>
+                    </li>
+                    <li class="ms-hover">
+                        <a href="#">Template Tasks</a>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="row margin-bottom-20">
+                <div class="col-md-6">
+                    <a href="adddtask.aspx" id="ContentPlaceHolder1_createTemplateTaskBtn" class="btn green tooltips">Create&nbsp;
+                        <i class="fa fa-plus"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="row template-task-table-container">
+                <div class="portlet light bordered" id="main-portlet-tasks" data-team="false">
+                    <div class="portlet-title" style="border: none;">
+
+
+                        <div class="tabbable-line col-md-9">
+
+                            <ul class="nav nav-tabs home-tabs nav-justified task-widget">
+
+                                <li class="active" data-action="Favorites" id="favorites-tab">
+                                    <a href="#UrgentTabContent" data-toggle="tab">Favorite  </a>
+                                </li>
+
+                                <li data-action="All" id="all-tab">
+                                    <a href="#UrgentTabContent" data-toggle="tab">All </a>
+                                </li>
+
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="portlet-body">
+                        <input id="ContentPlaceHolder1_chkInactive" type="checkbox" name="ctl00$ContentPlaceHolder1$chkInactive" onclick="doInactive();" /><label for="ContentPlaceHolder1_chkInactive">Include Archived Templates</label>
+                    </div>
+
+                    <div class="portlet-body" style="position: relative;">
+                        <div class="tab-content">
+                            <div class="tab-pane active" id="UrgentTabContent">
+
+
+                                <div class="table-container">
+                                    <table id="TemplateTaskTable" class="table table-striped table-bordered table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th class="span2">Name</th>
+                                                <th class="span3">Description</th>
+                                                <th class="span1 not-assignable">Category</th>
+                                                <th class="span2">Sub Category</th>
+                                                <th class="span2 not-assignable">Created On</th>
+                                                <th class="span2 withTooltip" data-title="Checking Favorite will include Template Task in Favorites Section">Favorite</th>
+                                                <th class="span2 not-assignable not-assignable withTooltip" data-title="Checking Auditable will allow the Template Task to be viewed by persons with an audit permission">Auditable</th>
+                                                <th class="span2 not-assignable withTooltip" data-title="Checking Assignable will allow the Template Task to be assigned by any user. These items will be listed under 'Opportunities' on the dashboard.">Assignable</th>
+                                                <th class="span2">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <input type="hidden" name="ctl00$ContentPlaceHolder1$EditTemplate" id="EditTemplate" />
+    <input type="hidden" name="ctl00$ContentPlaceHolder1$AssignPermission" id="AssignPermission" />
+
+        </div>
+
+        <!--  ///// START FOOTER //////////////////////////////////////// -->
+        <div id="FooterContainer" class="page-footer">
+            <div class="page-footer-inner">
+                <a class="open-new-window" href="http://www.manageupprm.com/terms-of-use/">Terms of Service</a> |
+		        <a class="open-new-window" href="http://www.manageupprm.com/privacy-policy/">Privacy Guidelines</a> |
+		        <a class="open-new-window" href="http://www.manageupprm.com/about-us">About BMBUBU</a> |
+		        <a class="open-new-window" href="mailto:info@manageupprm.com">Contact Us</a> |
+		&copy; 2022 BMBUBU |
+                <span id="version">1.2.0.0</span>
+            </div>
+
+            
+        </div>
+        <!--  ///// END FOOTER //////////////////////////////////////// -->
+
+        <div id="full-screen-modal" class="modal fade bs-modal-lg" aria-hidden="true">
+            <div class="modal-dialog modal-full">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        <h4 class="modal-title"></h4>
+                    </div>
+                    <div class="modal-body" style="min-height: 100px;">
+                        <iframe src="" frameborder="0" width="98%"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="help-video-modal" class="modal fade" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        <h4 class="modal-title"></h4>
+                    </div>
+                    <div class="modal-body" style="min-height: 100px;">
+                        <iframe src="" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="product-updates-modal" class="modal fade bs-modal-lg modal-scroll" aria-hidden="true" style="z-index: 11000">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        
+                        <h2 class="product-updates-modal-title">
+                            <img src="/_ima/logo-blue2.png" class="product-updates-header-logo" /> 
+                            <small><b class="product-updates-version"></b>: </small>
+                            <span id="product-updates-title"></span>
+                        </h2>
+                    </div>
+                    <div class="modal-body">
+                        <div id="product-updates-error-container">
+
+                        </div>
+                        <div class="product-updates-description-container">
+                            
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="product-updates-navigation-buttons">
+                            <button type="button" class="btn btn-xs btn-info product-update-navigation-button" id="product-updates-previous-version-button">
+                                <i class="fa fa-caret-left"></i>
+                                <span class="product-updates-previous-version"></span>
+                            </button>
+                            <button type="button" class="btn btn-xs btn-info product-update-navigation-button" id="product-updates-next-version-button">
+                                <i class="fa fa-caret-right"></i> 
+                                <span class="product-updates-next-version"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tips-modal" class="modal fade bs-modal-lg modal-scroll" aria-hidden="true" style="z-index: 11000">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        
+                        <h2 class="tips-modal-title">
+                            <img src="/_ima/logo-blue2.png" class="tips-header-logo" /> 
+                            <span id="tips-title"></span>
+                        </h2>
+                    </div>
+                    <div class="modal-body">
+                        <div id="tips-error-container">
+
+                        </div>
+                        <div class="tips-description-container">
+                            
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="tips-navigation-buttons">
+                            <div class="col-md-1 col-md-offset-5">
+                                <button type="button" class="btn btn-xs btn-info tip-navigation-button" id="tips-previous-button">
+                                    <i class="fa fa-caret-left"></i>
+                                    <span class="tips-previous-version">Previous</span>
+                                </button>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-xs btn-info tip-navigation-button" id="tips-next-button">
+                                    <i class="fa fa-caret-right"></i> 
+                                    <span class="tips-next-version">Next</span>
+                                </button>
+                            </div>
+                            <div class="col-md-5 pull-right show-tips-checkbox-container">
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="show-tips-checkbox" /> Show me tips of the week when I log in
+                                    </label> 
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+    
+
+<script type="text/javascript">
+    var users, userSelectionModal;
+    $(document).ready(function () {
+        userSelectionModal = $('#usersSelectionModal');
+
+        $('#modals_UsersGroupModal_UserGroups').select2({
+            multiple: true,
+            placeholder: "Select Users...",
+            query: function (options) {
+                var selectedIds = options.element.select2('val');
+                var data = jQuery.extend(true, {}, getGroupedUsersData());
+                var selectableGroups = $.map(data, function (group) {
+                    var areAllChildrenSelected = true,
+                        parentMatchTerm = false,
+                        anyChildMatchTerm = false;
+                    if (group.text.toLowerCase().indexOf(options.term.toLowerCase()) >= 0) {
+                        parentMatchTerm = true;
+                    }
+                    var i = group.children.length
+                    while (i--) {
+                        var child = group.children[i];
+                        if (selectedIds.indexOf(child.id.toString()) < 0) {
+                            areAllChildrenSelected = false;
+                        };
+
+                        if (!options.term || (child.text.toLowerCase().indexOf(options.term.toLowerCase()) >= 0)) {
+                            anyChildMatchTerm = true;
+                        }
+                        else if (!parentMatchTerm) {
+                            var index = group.children.indexOf(child);
+                            if (index > -1) {
+                                group.children.splice(index, 1);
+                            };
+                        };
+                    };
+
+                    return (!areAllChildrenSelected && (parentMatchTerm || anyChildMatchTerm)) ? group : null;
+                });
+
+                options.callback({ results: selectableGroups });
+            },
+            initSelection: function (element, callback) {
+                var userData = getUsers();
+                var data = [];
+                $.each($(element.val().split(",")), function () {
+                    var currentID = this;
+                    data.push({ id: currentID, text: inArrayWithCondition(userData, function (e) { return e.id == currentID }).text });
+                });
+                callback(data);
+            }
+        }).on('select2-selecting', function (e) {
+            var $select = $(this);
+            if (e.val == '') {
+                e.preventDefault();
+                $select.select2('data', $select.select2('data').concat(e.choice.children));
+                $select.select2('close');
+                $select.trigger('change');
+            };
+        }).on('change', function (e) {
+            userSelectionModal.find('.selected-groups').text(resolveSelectedGroups($(this).val()));
+        });
+
+        $('#showValue').click(function () {
+            $('#output').text($('#fruitSelect').val());
+        });
+
+        $('#usersSelectionModal').on('show.bs.modal', function () {
+            var selectedValues = userSelectionModal.data('container').find('.selected-users').val();
+            $('#modals_UsersGroupModal_UserGroups').val(selectedValues).trigger('change');
+        });
+
+        $('#usersSelectionModal').on('shown.bs.modal', function () {
+            userSelectionModal.find('input.users-group').select2('open');
+        });
+
+        $('#save-users-modal').on('click', function () {
+            var selectedUsers = $('#modals_UsersGroupModal_UserGroups').val();
+            userSelectionModal.data('container').find('.selected-users').val(selectedUsers).trigger('change');
+            userSelectionModal.modal('hide');
+        });
+
+    });
+
+    function getSelectedUsers(container) {
+        if (!container || !(container instanceof jQuery) || !container.length)
+            return;
+
+        return container.find('.selected-users:first').val();
+    };
+
+    function getUsers() {
+        if (!users) {
+            users = [];
+            var groups = JSON.parse($('#' + $('#usersSelectionModal').find("input[value='department']").data('users')).val()).map(function (e) { return e.children });
+            users = users.concat.apply(users, groups);
+        };
+
+        return users;
+    };
+
+    function getGroupedUsersData() {
+        userSelectionModal = $('#usersSelectionModal');
+        return JSON.parse($('#' + userSelectionModal.find('.radio-list input:checked').data('users')).val());
+    };
+
+    function resolveSelectedGroups(selectedUsers) {
+        var selectedGroups = [], notGroupedUsers = [], userSelectionModal = $('#usersSelectionModal');
+        var departmentGroups = JSON.parse($('#' + userSelectionModal.find("input[value='department']").data('users')).val());
+        var operationalGroups = JSON.parse($('#' + userSelectionModal.find("input[value='operational']").data('users')).val());
+        var functionalGroups = JSON.parse($('#' + userSelectionModal.find("input[value='functional']").data('users')).val());
+        var teamGroups = JSON.parse($('#' + userSelectionModal.find("input[value='team']").data('users')).val());
+
+        if (!!selectedUsers) {
+            selectedUsers = selectedUsers.split(',');
+            notGroupedUsers = selectedUsers.slice();
+
+            $.each(departmentGroups, function (i, e) {
+                if (isGroupCompleted(e, selectedUsers, notGroupedUsers)) {
+                    selectedGroups.push(' ' + e.text + ' (Department)');
+                };
+            });
+
+            $.each(operationalGroups, function (i, e) {
+                if (isGroupCompleted(e, selectedUsers, notGroupedUsers)) {
+                    selectedGroups.push(' ' + e.text + ' (Operational Role)');
+                };
+            });
+
+            $.each(functionalGroups, function (i, e) {
+                if (isGroupCompleted(e, selectedUsers, notGroupedUsers)) {
+                    selectedGroups.push(' ' + e.text + ' (Functional Role)');
+                }
+            });
+
+            $.each(teamGroups, function (i, e) {
+                if (isGroupCompleted(e, selectedUsers, notGroupedUsers)) {
+                    selectedGroups.push(' ' + e.text + ' (Team)');
+                }
+            });
+
+            $.each(notGroupedUsers, function (i, user) {
+                var userFromList = inArrayWithCondition(getUsers(), function (us) { return us.id.toString() == user });
+                if (userFromList != null)
+                    selectedGroups.push(' ' + userFromList.text);
+            });
+        };
+
+        return selectedGroups.join();
+    };
+
+    function isGroupCompleted(group, selectedValues, notGroupedUsers) {
+        var intersection = group.children.filter(function (user) {
+            return selectedValues.indexOf(user.id.toString()) != -1
+        });
+
+        if (intersection.length == group.children.length) {
+            $.each(intersection, function (i, user) {
+                removeFromArrayWithCondition(notGroupedUsers, function (e) { return e == user.id.toString(); });
+            });
+        };
+
+        return intersection.length == group.children.length;
+    };
+</script>
+
+<div id="usersSelectionModal" class="modal fade" aria-hidden="true">
+    <div class="modal-dialog bs-modal-lg">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h4>Users Selection</h4>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="col-md-3 control-label">Grouped by</label>
+                            <div class="radio-list col-md-9">
+                                <label class="radio-inline">
+                                    <div class="radio">
+                                        <input type="radio" name="filterBy" checked="checked" value="department" data-users="modals_UsersGroupModal_UsersDepartments">
+                                    </div>
+                                    Department
+                                </label>
+                                <label class="radio-inline">
+                                    <div class="radio">
+                                        <input type="radio" name="filterBy" value="operational" data-users="modals_UsersGroupModal_UsersOperational">
+                                    </div>
+                                    Operational Role
+                                </label>
+                                <label class="radio-inline">
+                                    <div class="radio">
+                                        <input type="radio" name="filterBy" value="functional" data-users="modals_UsersGroupModal_UsersFunctional">
+                                    </div>
+                                    Functional Role
+                                </label>
+                                <label class="radio-inline">
+                                    <div class="radio">
+                                        <input type="radio" name="filterBy" value="team" data-users="modals_UsersGroupModal_UsersTeams">
+                                    </div>
+                                    Team
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="col-md-3 control-label">Users</label>
+                            <div class="col-md-9">
+                                <input name="ctl00$modals$UsersGroupModal$UserGroups" type="hidden" id="modals_UsersGroupModal_UserGroups" class="form-control users-group" />
+                                <input type="hidden" name="ctl00$modals$UsersGroupModal$UsersDepartments" id="modals_UsersGroupModal_UsersDepartments" />
+                                <input type="hidden" name="ctl00$modals$UsersGroupModal$UsersOperational" id="modals_UsersGroupModal_UsersOperational" />
+                                <input type="hidden" name="ctl00$modals$UsersGroupModal$UsersFunctional" id="modals_UsersGroupModal_UsersFunctional" />
+                                <input type="hidden" name="ctl00$modals$UsersGroupModal$UsersTeams" id="modals_UsersGroupModal_UsersTeams" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <label class="col-md-3 control-label">Selected Groups</label>
+                        <span class="col-md-9 selected-groups form-control-static"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn green" id="save-users-modal" href="javascript:void(0)">Save</a>
+                <a class="btn red" data-dismiss="modal" aria-hidden="true">Close</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+        
+
+<script type="text/javascript">
+    function ShowVimeoVideo(url) {
+        var VimeoPlayer = $('#vimeoModalPlayer');
+        VimeoPlayer.attr('width', 500);
+        VimeoPlayer.attr('height', 281);
+        VimeoPlayer.attr('frameborder', 0);
+        VimeoPlayer.attr('src', url);
+
+        $('.modal:visible').modal('hide');
+
+        $("#VimeoModalPlayer").modal('show');
+    };
+
+    function PlayVimeo(url) {
+        ShowVimeoVideo(url);
+    };
+
+    $(document).ready(function () {
+        $('#VimeoModalPlayer').on('hide.bs.modal', function () {
+            console.log('closed');
+            $('#vimeoModalPlayer').attr('src', '');
+        });
+    });
+
+</script>
+
+<div id="VimeoModalPlayer" class="modal fade" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="vimeoModalPlayer" src="" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+        <script type="text/x-jquery-tmpl" id="notification-row-content">
+            <li>
+                <a href="${link}">
+                    <!-- use the link to the task for example -->
+                    <span class="time">${friendlyTime}</span>
+                    <span class="details">
+                        <span class="label label-sm label-icon label-success" <i class="fa ${Icon}"></i>">
+                            <i class="fa ${Icon}"></i>
+                            <!-- we can use different types => fa-bell-o fa-bolt fa-bullhorn -->
+                        </span>
+                        ${EventDescription}</span>
+                </a>
+            </li>
+
+        </script>
+
+    </form>
+</body>
+</html>

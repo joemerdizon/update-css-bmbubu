@@ -1,0 +1,163 @@
+﻿<%@ Master Language="C#" MasterPageFile="~/MasterNewUI.Master" AutoEventWireup="true" CodeBehind="DataImportMaster.master.cs" Inherits="ManageUPPRM.dashjs.DataImportMaster" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="head" runat="server">
+</asp:Content>
+
+<asp:Content ID="Content2" ContentPlaceHolderID="ContentPlaceHolder1" runat="server">
+    <style>
+        .file-input {
+            margin-top: 7px;
+        }
+        .section-title {
+            border-bottom: solid 1px #E5E5E5;
+            margin-top: 15px;
+            padding-bottom: 6px;
+        }
+        .note {
+            margin-top:15px;
+        }
+        .border-right {
+            border-right: 1px solid lightgray;
+        }
+    </style>
+
+    <div class="page-content-wrapper">
+        <div class="page-content">
+
+            <%--Admin Menu--%>
+            <div class="portlet light bordered" data-team="false">
+                <div class="portlet-title " style="border: none;">
+                    <div class="tabbable-line col-md-9">
+                        <ul class="nav nav-tabs home-tabs nav-justified task-widget" id="AdminTabs">
+                            <asp:Literal ID="AdminMenu" runat="server" />
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="portlet box grey-silver">
+
+                        <div class="portlet-title">
+                            <div class="caption">
+                                <div runat="server" id="labTitle">Import Data</div>
+                            </div>
+                        </div>
+
+                        <div class="portlet-body">
+                            <div class="row">
+                                <div class="col-md-12">
+
+                                    <%--Instructions--%>
+                                    <div class="col-md-12">
+                                        <div class="note note-info">
+                                            <asp:ContentPlaceHolder ID="instructions" runat="server">
+                                            </asp:ContentPlaceHolder>
+                                        </div>
+                                    </div>
+                            
+
+                                    <%--Import--%>
+                                    <div class="col-md-6">
+                                        <div class="col-md-12">
+                                            <h4 class="section-title">Import</h4>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="form form-horizontal col-md-12">
+                                                <div class="form-body">
+                                                    <div class="form-group">
+                                                        <label class="col-md-3 control-label">File</label>
+                                                        <div class="col-md-9">
+                                                            <asp:FileUpload ID="FileUpload1" runat="server" CssClass="file-input"/>
+                                                        </div>
+                                                    </div>
+                                        
+                                                    <div class="form-group" id="clientContainer" runat="server">
+                                                        <label class="col-md-3 control-label">Client</label>
+                                                        <div class="col-md-5">
+                                                            <asp:DropDownList ID="cmbClients" runat="server" CssClass="form-control"></asp:DropDownList>
+                                                        </div>
+                                                    </div>
+
+                                        
+                                                    <div class="form-group">
+                                                        <label class="col-md-3 control-label">Sheet Name</label>
+                                                        <div class="col-md-6">
+                                                            <asp:TextBox ID="sheetName" runat="server" CssClass="form-control"></asp:TextBox>
+                                                            <span class="help-block">Leave blank if your excel has only one sheet</span>
+                                                        </div>
+                                                    </div>
+                                    
+                                                    <div class="form-group">
+                                                        <label class="col-md-3 control-label">Row Number</label>
+                                                        <div class="col-md-6">
+                                                            <asp:TextBox ID="rowNumber" Text="1" runat="server" CssClass="form-control"></asp:TextBox>
+                                                            <span class="help-block">This is the row number where column titles are located</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <%--Actions--%>
+                                        <div class="row">
+                                            <div class="col-md-offset-3 col-md-9">
+                                                <asp:ContentPlaceHolder ID="importLocalOptions" runat="server">
+                                                </asp:ContentPlaceHolder>
+                                    
+                                                <asp:Button ID="butPreview" runat="server" Text="Validate" cssClass="btn green" OnClick="butPreview_Click" />
+                                                <asp:Button ID="butProcess" runat="server" Text="Import" cssClass="btn green" OnClick="butProcess_Click" />
+                                            </div>
+                                        </div>
+                                        <br />
+
+                                    </div>
+                                    
+
+                                    <div class="col-md-6">
+                                        <div class="col-md-12">
+                                            <h4 class="section-title">Export</h4>
+                                        </div>
+
+                                        <%--Actions--%>
+                                        <div class="row">
+                                            <div class="col-md-offset-1 col-md-9">
+                                                <p style="color: #737373; margin-top: 17px;">Download an excel file with the current data from the system</p>
+                                                <asp:Button ID="butDownload" runat="server" Text="Export" cssClass="btn green" OnClick="butDownload_Click" />
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+
+
+                            
+                                    <%--Results--%>
+                                    <div  id="resultsContainer" runat="server">
+                                        <div class="col-md-12">
+                                            <h4 class="section-title">Results</h4>
+                                        </div>
+
+                                        <div class="col-md-12">
+                                            <asp:GridView ID="gridViewNews" cssClass="table table-bordered table-striped" AutoGenerateColumns="false" runat="server">
+                                                <Columns>
+                                                    <asp:BoundField DataField="description" HeaderText="Log Record" />
+                                                </Columns>
+                                            </asp:GridView>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</asp:Content>
+<asp:Content ID="Content3" ContentPlaceHolderID="modals" runat="server">
+</asp:Content>
