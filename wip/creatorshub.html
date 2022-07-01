@@ -1,0 +1,1782 @@
+
+
+
+<!DOCTYPE html>
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>
+
+</title>
+
+
+    <script>
+        function loadNotifications() {
+            var cont = 0;
+            var i;
+            for (i = 0; i < notifications.length; i++) {
+                if (notifications[i].Sent == false) {
+                    cont = cont + 1;
+                }
+            }
+
+            $('#ulNotifications').html($('#notification-row-content').tmpl(notifications));
+            $('#pendingNotifications').html(cont.toString());
+
+            if (cont != 0) {
+                $('#notificationAmount').html(cont.toString());
+                $('#spanBadgeIcon').addClass('badge');
+                $('#spanBadgeIcon').addClass('badge-default');
+            }
+        }
+
+        function doOpenNotifications() {
+            //$('#pendingNotifications').html('0');
+            //$('#notificationAmount').html('0');
+
+            var i;
+            var strIds = '';
+
+            for (i = 0; i < notifications.length; i++) {
+                strIds = strIds + ',' + notifications[i].NotificationLogId;
+            }
+
+            var ids = "{ 'notificationIds': '" + strIds + "' }";
+
+            callWebService({ url: '/ManageUPWebService.asmx/MarkNotificationsAsSeen', data: ids}, true);
+        }
+
+        function setSection(section) {
+            var sectionElement = document.getElementById(section);
+            if (sectionElement) {
+                sectionElement.className = 'active';
+            }
+        };
+
+        function setSubSection(subsection) {
+            if (!(subsection instanceof jQuery) && subsection != '') {
+                subsection = $('.' + subsection);
+            };
+
+            if (!!subsection && subsection.length) {
+                subsection.parent().addClass('active').closest('.sub-menu').show().siblings('a').find('span').addClass('open').closest('li').addClass('open');
+            };
+        };
+
+        function logoff() {
+            //$('#logout-modal').modal('show');
+            window.location.href = '/logincontroller.aspx?ac=logoff';
+            return false;
+        };
+
+        function UpdateStatusChange(status) {
+            var DTO = { 'StatusID': parseInt(status) };
+
+            $.ajax({
+                type: "POST",
+                url: "/ManageUPWebService.asmx/UpdateAvailStatus",
+                async: true,
+                data: JSON.stringify(DTO),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                failure: function (data) {
+                    alert('error changing status');
+                },
+                success: function (data) {
+                    setStatusStyle(data.d);
+                },
+            });
+        }
+
+        function setStatusStyle(status) {
+            if (status == '../dashjs/img/delete_icon.png') {
+                $('#labStatusDescription').html('Unavailable');
+                $('#statusContainer1').addClass('red');
+                $('#statusContainer1').removeClass('green');
+                $('#statusContainer2').addClass('fa-minus');
+                $('#statusContainer2').removeClass('fa-plus');
+            }
+            else {
+                $('#labStatusDescription').html('Available');
+                $('#statusContainer1').addClass('green');
+                $('#statusContainer1').removeClass('red');
+                $('#statusContainer2').removeClass('fa-minus');
+                $('#statusContainer2').addClass('fa-plus');
+
+            }
+
+
+        }
+        
+        function loadDefaultImage(element) {
+            element.onerror = "";
+            element.src = "https://localhost:44329/dashjs/"
+            return true;
+        }
+
+
+        //Product Updates Functions
+        function loadProductUpdate(productUpdateID, callback) {
+            //Clear the error container
+            $("#product-updates-error-container").html("");
+
+            //If the ProductUpdateID is null, it will retrieve the most recent one
+            var data = {
+                productUpdateID: productUpdateID ? productUpdateID : ""
+            }
+
+            call('/ManageUPWebService.asmx/GetProductUpdate', JSON.stringify(data), function (response) {
+                productUpdate = response.d;
+
+                if (productUpdate) {
+                    //Load Current Update
+                    $(".product-updates-version").text(productUpdate.Version);
+                    $("#product-updates-title").text(productUpdate.Title);
+                    $(".product-updates-description-container").html(productUpdate.Description);
+
+
+                    //Load Previous Update
+                    if (productUpdate.PreviousProductUpdateID) {
+                        $("#product-updates-previous-version-button").prop('disabled', false);
+                        $("#product-updates-previous-version-button .fa-caret-left").show();
+                        $("#product-updates-previous-version-button").data("productUpdateID", productUpdate.PreviousProductUpdateID);
+                        $(".product-updates-previous-version").text(productUpdate.PreviousProductUpdateVersion);
+                    } else {
+                        $("#product-updates-previous-version-button").prop('disabled', true);
+                        $("#product-updates-previous-version-button .fa-caret-left").hide();
+                        $("#product-updates-previous-version-button").removeData("productUpdateID");
+                        $(".product-updates-previous-version").text(productUpdate.Version);
+                    }
+
+                    //Load Next Update
+                    if (productUpdate.NextProductUpdateID) {
+                        $("#product-updates-next-version-button").prop('disabled', false);
+                        $("#product-updates-next-version-button .fa-caret-right").show();
+                        $("#product-updates-next-version-button").data("productUpdateID", productUpdate.NextProductUpdateID);
+                        $(".product-updates-next-version").text(productUpdate.NextProductUpdateVersion);
+                    } else {
+                        $("#product-updates-next-version-button").prop('disabled', true);
+                        $("#product-updates-next-version-button .fa-caret-right").hide();
+                        $("#product-updates-next-version-button").removeData("productUpdateID");
+                        $(".product-updates-next-version").text(productUpdate.Version);
+                    }
+
+                    //In case there's only ONE ProductUpdate, we need to hide one of the navigation buttons
+                    if (!productUpdate.NextProductUpdateID && !productUpdate.PreviousProductUpdateID) {
+                        $("#product-updates-next-version-button").hide();
+                    } else {
+                        $("#product-updates-next-version-button").show();
+                    }
+
+                    //If it's not the default product update, we scroll up the modal
+                    if (productUpdateID) {
+                        $('#product-updates-modal .modal-body').slimScroll({ scrollTo: '0px' });
+                    }
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no Product Updates");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#product-updates-error-container"), "An error ocurred while retrieving the update information.");
+            });
+        }
+
+        //Tips of the Week Functions
+        function loadTip(tipID, callback) {
+            //Clear the error container
+            $("#tips-error-container").html("");
+
+            //If the tipID is null, it will retrieve the most recent one
+            var data = {
+                tipID: tipID ? tipID : ""
+            }
+
+            call('/ManageUPWebService.asmx/GetTip', JSON.stringify(data), function (response) {
+                tip = response.d;
+
+                if (tip) {
+                    //Load tip content
+                    loadTipContent(tip);
+
+                    //If it's not the default Tip, we scroll up the modal
+                    if (tipID) {
+                        $('#tips-modal .modal-body').slimScroll({ scrollTo: '0px' });
+                    }
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no tips of the week");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+
+        function loadRandomTip(callback) {
+            //Clear the error container
+            $("#tips-error-container").html("");
+
+            call('/ManageUPWebService.asmx/GetRandomTip', null, function (response) {
+                tip = response.d;
+
+                if (tip) {
+                    //Load tip content
+                    loadTipContent(tip);
+
+                    if (callback)
+                        callback();
+                } else {
+                    bootbox.alert("There are no tips of the week");
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+
+        function loadTipContent(tip) {
+            //Load Current Tip
+            $("#tips-title").text(tip.Title);
+            $(".tips-description-container").html(tip.Description);
+
+            //Load Previous Tip
+            if (tip.PreviousTipID) {
+                $("#tips-previous-button").prop('disabled', false);
+                $("#tips-previous-button .fa-caret-left").show();
+                $("#tips-previous-button").data("tipID", tip.PreviousTipID);
+            } else {
+                $("#tips-previous-button").prop('disabled', true);
+                $("#tips-previous-button .fa-caret-left").hide();
+                $("#tips-previous-button").removeData("tipID");
+            }
+
+            //Load Next Tip
+            if (tip.NextTipID) {
+                $("#tips-next-button").prop('disabled', false);
+                $("#tips-next-button .fa-caret-right").show();
+                $("#tips-next-button").data("tipID", tip.NextTipID);
+            } else {
+                $("#tips-next-button").prop('disabled', true);
+                $("#tips-next-button .fa-caret-right").hide();
+                $("#tips-next-button").removeData("tipID");
+            }
+
+            //In case there's only ONE Tip, we need to hide one of the navigation buttons
+            if (!tip.NextTipID && !tip.PreviousTipID) {
+                $("#tips-next-button").hide();
+            } else {
+                $("#tips-next-button").show();
+            }
+
+            //Show subscription checkbox
+            $(".show-tips-checkbox-container").show();
+        }
+
+        function loadTipOfTheWeekSubscription() {
+            call('/ManageUPWebService.asmx/IsUserSubscribed', null, function (response) {
+                isSubscribed = response.d;
+
+                if (isSubscribed) {
+                    $("#show-tips-checkbox").prop('checked', true);
+                    $.uniform.update('#show-tips-checkbox');
+                }
+
+            }, function (response) {
+                showErrorMsgs($("#tips-error-container"), "An error ocurred while retrieving the tip information.");
+            });
+        }
+    </script>
+
+
+    <!--new includes-->
+    <meta charset="utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge" /><meta content="width=device-width, initial-scale=1.0" name="viewport" /><meta http-equiv="Content-type" content="text/html; charset=utf-8" /><link rel="apple-touch-icon" sizes="57x57" href="/_ima/apple-touch-icon-57x57.png" /><link rel="apple-touch-icon" sizes="60x60" href="/_ima/apple-touch-icon-60x60.png" /><link rel="apple-touch-icon" sizes="72x72" href="/_ima/apple-touch-icon-72x72.png" /><link rel="apple-touch-icon" sizes="76x76" href="/_ima/apple-touch-icon-76x76.png" /><link rel="apple-touch-icon" sizes="114x114" href="/_ima/apple-touch-icon-114x114.png" /><link rel="apple-touch-icon" sizes="120x120" href="/_ima/apple-touch-icon-120x120.png" /><link rel="apple-touch-icon" sizes="144x144" href="/_ima/apple-touch-icon-144x144.png" /><link rel="apple-touch-icon" sizes="152x152" href="/_ima/apple-touch-icon-152x152.png" /><link rel="apple-touch-icon" sizes="180x180" href="/_ima/apple-touch-icon-180x180.png" /><link rel="icon" type="image/png" href="/_ima/favicon-32x32.png" sizes="32x32" /><link rel="icon" type="image/png" href="/_ima/android-chrome-192x192.png" sizes="192x192" /><link rel="icon" type="image/png" href="/_ima/favicon-96x96.png" sizes="96x96" /><link rel="icon" type="image/png" href="/_ima/favicon-16x16.png" sizes="16x16" /><link rel="shortcut icon" href="/_ima/favicon.ico" /><link rel="manifest" href="/_ima/manifest.json" /><meta name="msapplication-TileColor" content="#2d89ef" /><meta name="msapplication-TileImage" content="/_ima/mstile-144x144.png" /><meta name="theme-color" content="#ffffff" />
+
+    <!-- global -->
+
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700&amp;subset=all" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/simple-line-icons/simple-line-icons.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/uniform/css/uniform.default.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-switch/css/bootstrap-switch.min.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-summernote/summernote.css" rel="stylesheet" type="text/css" />
+
+    <!-- BEGIN PAGE LEVEL STYLES -->
+    <link rel="stylesheet" type="text/css" href="/assets/global/plugins/select2/select2.css" /><link rel="stylesheet" type="text/css" href="/assets/global/plugins/datatables/extensions/ColReorder/css/dataTables.colReorder.min.css" /><link rel="stylesheet" type="text/css" href="/assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.css" />
+
+    <!-- theme -->
+    <link id="style_components" href="/assets/global/css/components-rounded.css" rel="stylesheet" type="text/css" /><link href="/assets/global/css/plugins.css" rel="stylesheet" type="text/css" /><link href="/assets/admin/layout/css/layout.css" rel="stylesheet" type="text/css" /><link id="style_color" href="/assets/admin/layout/css/themes/darkblue.css" rel="stylesheet" type="text/css" /><link href="/assets/admin/layout/css/custom.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-datepicker/css/datepicker3.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-datetimepicker/css/bootstrap-datetimepicker.css" rel="stylesheet" /><link href="/dashjs/css/validationEngine.jquery.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/bootstrap-toastr/toastr.css" rel="stylesheet" type="text/css" /><link href="/assets/global/plugins/emojione/assets/css/emojione.css" rel="stylesheet" />
+
+    <!-- begin javascript load (will reduce load-time being at the bottom) -->
+
+    <!-- BEGIN CORE PLUGINS -->
+    <!--[if lt IE 9]>
+<script src="/assets/global/plugins/respond.min.js"></script>
+<script src="/assets/global/plugins/excanvas.min.js"></script> 
+<![endif]-->
+    <script src="/assets/global/plugins/jquery.min.js" type="text/javascript"></script>
+
+
+    <!-- IMPORTANT! Load jquery-ui.min.js before bootstrap.min.js to fix bootstrap tooltip conflict with jquery ui tooltip -->
+    <script src="/assets/global/plugins/jquery-ui/jquery-ui.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-hover-dropdown/bootstrap-hover-dropdown.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery-slimscroll/jquery.slimscroll.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.blockui.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.cokie.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/uniform/jquery.uniform.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-switch/js/bootstrap-switch.min.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-confirmation/bootstrap-confirmation.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script src="/assets/global/plugins/bootstrap-datetimepicker/js/bootstrap-datetimepicker.js"></script>
+    <script src="/assets/global/plugins/bootstrap-summernote/summernote.js"></script>
+    <script src="/assets/global/plugins/bootbox/bootbox.min.js"></script>
+    <script src="/assets/global/plugins/select.js" type="text/javascript"></script>
+    <script src="/assets/global/plugins/jquery.pulsate.min.js"></script>
+    <!-- END CORE PLUGINS -->
+
+    <!-- BEGIN PAGE LEVEL PLUGINS -->
+    <script src="/assets/global/scripts/metronic.js" type="text/javascript"></script>
+
+    <script type="text/javascript" src="/assets/global/plugins/select2/select2.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/media/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/TableTools/js/dataTables.tableTools.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/ColReorder/js/dataTables.colReorder.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/extensions/Scroller/js/dataTables.scroller.min.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/bootstrap-toastr/toastr.min.js"></script>
+    <script type="text/javascript" src="/dashjs/js/common.js"></script>
+    <script type="text/javascript" src="/dashjs/js/dynamicTab.js"></script>
+    <script type="text/javascript" src="/Scripts/jquery.tmpl.min.js"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.validationEngine.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.validationEngine-en.js" charset="utf-8"></script>
+    <script type="text/javascript" src="/dashjs/js/jquery.cookie.js"></script>
+    <script type="text/javascript" src="/assets/global/plugins/jquery-inputmask/jquery.inputmask.bundle.min.js"></script>
+    <script src="/assets/global/plugins/emojione/lib/js/emojione.js"></script>      
+
+    <!-- END PAGE LEVEL PLUGINS -->
+
+    <!-- BEGIN PAGE LEVEL SCRIPTS -->
+
+    <script src="/assets/global/plugins/fuelux/js/spinner.min.js" type="text/javascript"></script>
+    <script src="/assets/global/scripts/metronic.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/layout.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/quick-sidebar.js" type="text/javascript"></script>
+    <script src="/assets/admin/layout/scripts/demo.js" type="text/javascript"></script>
+    <script src="https://use.fonticons.com/dd7e0589.js"></script>
+    <!-- END PAGE LEVEL SCRIPTS -->
+
+
+    <!-- ON-PAGE SCRIPTS -->
+    <script>
+
+        // MY TASKS
+        // NOTE! BACKEND DATA HERE!!!!!!!
+        // NOTE! LINKS WILL BE LINKS TO RELATED PAGES
+
+
+        // pie relocation (listener)
+        function handlePieRelocation(event) {
+            window.location.href = event.dataItem.dataContext.url;
+        }
+
+
+        // tables 
+        var TableAdvanced = function () {
+            var initMyTasksTable = function () {
+
+                var table = $('#table_my_urgent_tasks');
+                var table_2 = $('#table_team_urgent_tasks');
+                var table_3 = $('#table_sub_for_approval');
+                var table_4 = $('#table_approval_required');
+
+                /* Fixed header extension: http://datatables.net/extensions/keytable/ */
+
+                var oTable = table.dataTable({
+                    "language": {
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var oTable_2 = table_2.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [3, "asc"]
+                    ]
+                });
+
+                var oTable_3 = table_3.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "aria": {
+                            "sortAscending": ": activate to sort column ascending",
+                            "sortDescending": ": activate to sort column descending"
+                        },
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var oTable_4 = table_4.dataTable({
+                    // Internationalisation. For more info refer to http://datatables.net/manual/i18n
+                    "language": {
+                        "aria": {
+                            "sortAscending": ": activate to sort column ascending",
+                            "sortDescending": ": activate to sort column descending"
+                        },
+                        "emptyTable": "No data available in table",
+                        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+                        "infoEmpty": "No entries found",
+                        "infoFiltered": "(filtered1 from _MAX_ total entries)",
+                        "lengthMenu": "_MENU_ records",
+                        "search": "Search:",
+                        "zeroRecords": "No matching records found"
+                    },
+                    "lengthMenu": [
+                        [10, 25, 50, -1],
+                        [10, 25, 50, "All"] // change per page values here
+                    ],
+                    "pageLength": 10, // set the initial value,
+                    "columnDefs": [{  // set default column settings
+                        'orderable': false
+                    }, {
+                        "searchable": true,
+                        "targets": [0]
+                    }],
+                    "order": [
+                        [2, "asc"]
+                    ]
+                });
+
+                var tableWrapper = $('#table_my_urgent_tasks_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_team_urgent_tasks_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_sub_for_approval_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                var tableWrapper = $('#table_approval_required_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+                tableWrapper.find('.dataTables_length select').select2(); // initialize select2 dropdown
+            }
+
+            return {
+
+                //main function to initiate the module
+                init: function () {
+                    if (!jQuery().dataTable) {
+                        return;
+                    }
+                    initMyTasksTable();
+                }
+            };
+        }();
+
+
+        // PAGE LOAD STARTS HERE
+        jQuery(document).ready(function () {
+
+            // initiate layout and plugins
+            Metronic.init(); // init metronic core components
+            Layout.init(); // init current layout
+            QuickSidebar.init(); // init quick sidebar
+            Demo.init(); // init demo features
+            TableAdvanced.init(); // required for this page
+
+
+            // user status change
+            $('#availability-handler li').click(function () {
+                var state = $(this).attr('rel');
+                var update_status = $(this).find('a').text();
+
+                // clear state
+                $('#status-handler span').text(update_status);
+                $('#availability-handler .availability-status').removeClass("green");
+                $('#availability-handler .availability-status').removeClass("red");
+
+                // set state
+                $('#availability-handler .availability-status').addClass(state);
+            });
+
+            loadNotifications();
+
+            //Product Updates Event Handlers
+            $("#product-updates-button").on("click", function () {
+                callback = function () { $("#product-updates-modal").modal("show"); };
+                loadProductUpdate(null, callback);
+            });
+
+            $(".product-update-navigation-button").on("click", function () {
+                var productUpdateID = $(this).data("productUpdateID");
+                
+                if (productUpdateID) {
+                    loadProductUpdate(productUpdateID);
+                }
+            });
+
+            //Tips of the Week Event Handlers
+            $("#tips-button").on("click", function () {
+                callback = function () { $("#tips-modal").modal("show"); };
+                loadRandomTip(callback);
+            });
+
+            $(".tip-navigation-button").on("click", function () {
+                var tipID = $(this).data("tipID");
+
+                if (tipID) {
+                    loadTip(tipID);
+                }
+            });
+
+            //Load tip of the week subscription checkbox
+            loadTipOfTheWeekSubscription();
+
+            $("#show-tips-checkbox").on("change", function () {
+                //alert("Subscribe or unsubscribe user!");
+                var subscribe = $(this).is(":checked");
+                call('/ManageUPWebService.asmx/SetTipsSubscription', JSON.stringify({ subscribe: subscribe }), function (response) {
+                    var response = response.d;
+
+                    if (response.Success) {
+                        var message = subscribe ? "You were successfully subscribed to tips of the week" : "You were successfully unsubscribed from tips of the week";
+                        showToastNotification(message, 'Tip of the Week');
+                    }
+                });
+            });
+        });
+    </script>
+    <script type="text/x-jquery-tmpl" id="msg-tmpl">
+        <div class="alert alert-dismissable">
+            <button type="button" class="close" data-dismiss="alert" aria-hidden="true"></button>
+            <strong class="main-msg">{{html title}}</strong>
+            <ul class="error-list">{{html list}}</ul>
+        </div>
+    </script>
+
+    <!--end new includes-->
+    
+
+    <link rel="stylesheet" type="text/css" href="/assets/global/plugins/jstree/dist/themes/default/style.min.css" />
+
+
+    <script src="/assets/global/plugins/jstree/dist/jstree.min.js"></script>
+    <script src="/assets/admin/pages/scripts/ui-tree.js"></script>
+    <script src="/dashjs/js/createreportdoc.js"></script>
+    <script src="/assets/global/plugins/fuelux/js/spinner.min.js"></script>
+    <script src="/dashjs/js/fuelUx/scheduler.js"></script>
+    <script src="/dashjs/js/keepAuthenticationAlive.js"></script>
+
+    <style>
+        
+        /* signature information */
+        p.signature-acknowledge {
+            font-weight: bold;
+            font-style: italic;
+            margin-bottom: 0px;
+        }
+
+        .signature-wrapper {
+            padding-top: 18px;
+        }
+
+        .signature-wrapper label {
+            background-color: #fff;
+            padding-right: 8px;
+        }
+        .signature-line {
+            height: 15px;
+            border-bottom: 1px solid #949594;
+        }
+        .report-template-footer {
+            overflow:auto;
+            margin-bottom: 20px;
+            margin-top: 20px;
+        }
+
+        .note-editor .signature-container {
+            overflow:auto;
+            border-width: 1px; 
+            border-style: dashed; 
+            border-color: gray;
+            cursor: not-allowed;
+        }
+
+        .note-editor .signature-label {
+            cursor: not-allowed;
+        }
+
+        .default-section-container li.selected-task {
+            line-height: 38px;
+            padding-left: 50px;
+            margin-left: 0;
+            list-style: none;
+            border-top: 1px solid #DFDFDF;
+            clear: both;
+        }
+        .not-approved {
+            color: orange;
+        }
+        .jstree-container-ul {
+            overflow: hidden;
+            max-width: 100%;
+        }
+        .jstree-container-ul a {
+            overflow: hidden;
+            width: 94%;
+            text-overflow: ellipsis;
+        }
+        .references-title {
+            cursor: pointer;
+        }
+        .modal-dialog-center {
+            margin-top: 25%;
+        }
+        .modal-title {
+            font-weight: bold
+        }
+        .modal-header {
+          min-height: 16.42857143px;
+          padding: 15px;
+          border-bottom: 1px solid #e5e5e5;
+        }
+        .modal-header .close {
+          margin-top: -2px;
+        }
+    </style>
+</head>
+<body class="page-header-fixed page-quick-sidebar-over-content">
+    <form method="post" action="./createreportdoc.aspx" id="form1" class="form-horizontal">
+<div class="aspNetHidden">
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" />
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="" />
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['form1'];
+if (!theForm) {
+    theForm = document.form1;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<script src="/WebResource.axd?d=pynGkmcFUV13He1Qd6_TZASUxnXZqcoQGKJ4fgApVrIWiL2t58le-r_uwH18uf3hKb7PbPu54vwfel79KAiR_w2&amp;t=637814948020000000" type="text/javascript"></script>
+
+
+<script type="text/javascript">
+//<![CDATA[
+$(function() { loadSections([{"SectionID":1,"Name":"default","Description":null,"TemplateReportID":null,"Order":null,"TemplateTaskList":null}]); }); $(function() { setSection('liReports'); }); $(function() { setSubSection('documents_create'); });var mp_roleId = 4; var mp_clientId = 1;var notifications = [{"NotificationLogId":5908,"EventDate":"\/Date(1437456960090)\/","EventDescription":"There are changes on your team","UserId":0,"ObjectId":1,"ObjectType":"TE","Sent":true,"Color":"","Icon":"","friendlyTime":"2536 days ago","minutesAgo":3653032.6766118449,"EventDateAsString":"2015/07/21 13:36:00","link":"/dashjs/team.aspx"},{"NotificationLogId":5803,"EventDate":"\/Date(1437447700623)\/","EventDescription":"There are changes on the site settings","UserId":0,"ObjectId":0,"ObjectType":"  ","Sent":true,"Color":"","Icon":"","friendlyTime":"2536 days ago","minutesAgo":3653187.0010618451,"EventDateAsString":"2015/07/21 11:01:40","link":""},{"NotificationLogId":3845,"EventDate":"\/Date(1436765166867)\/","EventDescription":"A task has been assigned to you","UserId":0,"ObjectId":7625,"ObjectType":"TA","Sent":true,"Color":"#4392cb","Icon":" fa-bullhorn","friendlyTime":"2544 days ago","minutesAgo":3664562.5636618449,"EventDateAsString":"2015/07/13 13:26:06","link":"/dashjs/taskcontroller.aspx?TaskId=7625"},{"NotificationLogId":3842,"EventDate":"\/Date(1436765166337)\/","EventDescription":"A task has been assigned to you","UserId":0,"ObjectId":7622,"ObjectType":"TA","Sent":true,"Color":"#4392cb","Icon":" fa-bullhorn","friendlyTime":"2544 days ago","minutesAgo":3664562.5724951783,"EventDateAsString":"2015/07/13 13:26:06","link":"/dashjs/taskcontroller.aspx?TaskId=7622"}];//]]>
+</script>
+
+<script src="/ScriptResource.axd?d=D9drwtSJ4hBA6O8UhT6CQgJopNj5Y-xwn_cD-a9OW5l9BZ3tnkjHZhfWzasWjbS9EVGOZ6I7bv-gWnwjPynYMRfZjZ4vHh8MMsaCYFbPQ4fTOCcJp90Z6tNjkyGcORdVH8ZyXD3vIz_pcJzzD-yTr1So0x4sJuhhFljFxZqxGmc1&amp;t=49337fe8" type="text/javascript"></script>
+<script type="text/javascript">
+//<![CDATA[
+if (typeof(Sys) === 'undefined') throw new Error('ASP.NET Ajax client-side framework failed to load.');
+//]]>
+</script>
+
+<script src="/ScriptResource.axd?d=JnUc-DEDOM5KzzVKtsL1tbZAab4D9uKbrnvnrRIcBh_gDPiXPZzodg0B6gYbmyWHNM0V5vh1q0lzlz_53ua5T8c1IUFdKKwTlgwxwvogfcbcBm2MJtvy1VVv0RJ8IhWBQalMPq3mT1TL-tOGi4vuI1SMjRTCJsCcYtkSAbFb2yXq0mh092m-4RwwEGvwGmjV0&amp;t=49337fe8" type="text/javascript"></script>
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="B4F86559" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="DrA4Oo4SBDJ4qdXY4LXTNXXez17yQ0D/iKj5W6NX8YF0Z/VK5nQvf12wmnpKd1Ls4Xi9sPooQVTvDDihMGmsrW/+LxqjBTrPUk6wRYJjBHWTud/O4XAlNPmYdKhghtpTQV/vgu0dpgWDchB8onG2jDUUVGjDotV6Zx9ZBJlRz9oy0lulFQdQgQP2wjchxxUBaFVqrh24zE4fNC63AMGebxZZekkK2z76yrWvZLwaseIVCA3Zj4Wynba3x052xQkNd5bnYaHjz76QRvlNE42BavPdNiTXeIBlxtgfHAPzo9gvDOMkwfp9p/GTC/KH47h+Lg3wBjIeLh3nsO/WprwG2uGXYGf+SCJ9BQl+VuGWUrg=" />
+</div>
+
+
+        <!--  ///// START HEADER //////////////////////////////////////// -->
+        <div id="HeaderContainer" class="page-header navbar navbar-fixed-top">
+
+
+            <!-- start inner -->
+            <div class="page-header-inner">
+
+
+                <!-- logo -->
+                <div class="page-logo">
+                    <img src="../img/20150608_14_SSGH%20logo%20-%20white.png" id="HeaderClientLogo" class="margin-top-5" height="90" />
+
+                    
+                    
+                </div>
+                <!-- end logo -->
+
+
+                <!-- right navigation -->
+                <div class="top-menu">
+
+                    <!-- right -->
+                    <ul class="nav navbar-nav pull-right">
+                        <li class="dropdown dropdown-extended dropdown-inbox">
+                            <a href="http://www.gmail.com" id="emailLink" class="dropdown-toggle open-new-window">
+                                <i class="icon-envelope-open"></i>
+                            </a>
+                        </li>
+                        
+                            <li class="dropdown dropdown-extended dropdown-notification" id="header_notification_bar">
+                                <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true" onclick="doOpenNotifications();" onmouseover="doOpenNotifications();">
+                                    <i class="icon-bell"></i>
+                                    <span id="spanBadgeIcon">
+                                        <span id="notificationAmount"></span></span>
+                                </a>
+
+                                <ul class="dropdown-menu">
+                                    <li class="external">
+                                        <h3 class="tooltips" data-original-title="Notifications on various alertable items. If your Administrator has granted access, you can customize your notification preferences under 'Settings'"><span class="bold">
+                                            <span id="pendingNotifications"></span>
+                                            pending</span> notifications</h3>
+                                        <a href="#" onclick="window.location = '/dashjs/notificationsHistory.aspx';">view all</a>
+                                    </li>
+                                    <li>
+                                        <ul class="dropdown-menu-list scroller" style="height: 250px;" data-handle-color="#637283" id="ulNotifications">
+
+
+                                            <!-- notification example -->
+                                            <!-- end -->
+
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </li>
+                        
+                        <li class="dropdown dropdown-user">
+
+                            <!-- start -->
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-hover="dropdown" data-close-others="true">
+
+                                <!-- DEVELOPER: Front-end User -->
+                                <img class="img-circle" src="https://localhost:44329/dashjs/img/adm.jpg" onerror="loadDefaultImage(this);" style="max-width: 50px; max-height: 29px" />
+                                <span class="username username-hide-on-mobile">Admin Admin<br />
+                                    (MD, Director)</span>
+                                <i class="fa fa-angle-down"></i>
+                            </a>
+                            <!-- end -->
+
+                            <!-- start dropdown -->
+                            <ul class="dropdown-menu dropdown-menu-default">
+                                <li><a href="/dashjs/admin/profile.aspx"><i class="fa fa-user"></i>Profile <i data-videoid='148097782' class='fa fa-play-circle help-video'></i></a></li>
+                                <li id="menuSettings"><a href="/dashjs/admin/settings.aspx"><i class="fa fa-cog"></i>Settings </a></li>
+                                <li><a href="/ZenDesk.ashx" class="open-new-window"><i class="fa fa-question-circle"></i>Help <i data-videoid='138959367' class='fa fa-play-circle help-video'></i></a></li>
+                                <li><a href="#" id="tips-button"><i class="fa fa-lightbulb-o"></i> Tip of the Week</a></li>
+                                <li class="divider"></li>
+                                <li><a href="#" id="product-updates-button"><i class="fa fa-exclamation-circle"></i> What's New?</a></li>
+                                <li class="divider"></li>
+                                <li><a href="#" onclick="logoff();"><i></i><strong>Log Out </strong></a></li>
+                            </ul>
+                            <!-- end dropdown -->
+
+                        </li>
+                    </ul>
+                    <!-- end right -->
+                </div>
+                <!-- end right navigation -->
+
+            </div>
+            <!-- end inner -->
+
+        </div>
+        <!--  ///// END HEADER //////////////////////////////////////// -->
+
+
+        <div class="clearfix"></div>
+
+        <div class="page-container">
+
+
+            <!--  ///// START SIDEBAR //////////////////////////////////////// -->
+            <div id="MainMenuBar" class="page-sidebar-wrapper">
+                <div class="page-sidebar navbar-collapse collapse">
+                    <ul class="page-sidebar-menu" data-keep-expanded="false" data-auto-scroll="true" data-slide-speed="200">
+                        <li class="sidebar-toggler-wrapper">
+                            <!-- SIDEBAR TOGGLER BUTTON -->
+                            <div class="sidebar-toggler tooltips" data-placement="bottom" data-original-title="Expands or minimizes the navigation bar"></div>
+                            <!-- END -->
+
+                        </li>
+
+
+                        <!-- start white status -->
+                        <li class="subnav-white-status" style="display: none;">
+
+                            <!-- start row -->
+                            
+                            <!-- end row -->
+
+                            <!-- start buttons -->
+                            <!-- DEVELOPER NOTE: availability-handler is to set green / red states -->
+                            
+
+                        </li>
+                        <!-- end white status -->
+
+
+                        <!-- 
+					DEVELOPER NOTES:
+					EXAMPLE OF ACTIVE STATE
+					NOTICE class="active"
+				 -->
+
+                        
+                                <li id="liChart">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-pie-chart"></i>
+                                        <span class="title">Chart</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='/dashjs/dashboardjsNew.aspx'>Main Chart</a></li></ul>
+                                </li>
+                            
+                                <li id="liCalendarView">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Calendar View</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='/dashjs/schedular.aspx'>Schedular</a></li></ul>
+                                </li>
+                            
+                                <li id="liTasks">
+                                    <a href="/dashjs/tasks.aspx">
+                                        <i class="fa fa-bullseye"></i>
+                                        <span class="title">Tasks</span>
+                                        <i data-videoid=138951095 class='fa fa-play-circle help-video pull-right'></i>
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li>
+                            <a href='javascript:;'>
+						        Create <span class='arrow'><i data-videoid='150270487' class='fa fa-play-circle help-video pull-right'></i></span>
+						    </a>
+                            <ul class='sub-menu'>
+                                <li><a class='tasks_create_personal' href='/dashjs/addptask.aspx'>Personal</a></li>
+                                <li><a class='tasks_create_adhoc' href='/dashjs/addtask.aspx'>Ad-Hoc</a></li>
+                                <li><a class='tasks_create_template' href='/dashjs/adddtask.aspx'>Template</a></li>
+                            </ul>
+                        </li>
+                        <li>
+                            <a href='javascript:;'>
+							    Status  <span class='badge badge-success'>19</span><span class='arrow'><i data-videoid='150271632' class='fa fa-play-circle help-video pull-right'></i></span> 
+					        </a>
+                            <ul class='sub-menu'>
+                                <li><a href='/dashjs/tasks.aspx?action=Urgent' data-selected='Urgent'>Urgent      <span class='badge badge-success'>19</span></a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=DueSoon' data-selected='DueSoon'>Due Soon    </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=New' data-selected='New'>New         </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=Completed' data-selected='Completed'>Completed   </a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=All' data-selected='All'>All         </a></li>
+                            </ul>
+                        </li>
+
+                        <li><a href='/dashjs/tasks.aspx?action=Personal' data-selected='Personal'>Personal Tasks      <i data-videoid='150271800' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                        <li><a class='tasks_template' href='/dashjs/TemplateTasks.aspx'>Template Tasks    <i data-videoid='150271735' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                    </ul>
+                                </li>
+                            
+                                <li id="liReports">
+                                    <a href="/dashjs/admin/reportDocuments.aspx">
+                                        <i class="fa fa-pencil-square-o"></i>
+                                        <span class="title">Reports Templates</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    <ul class='sub-menu'>
+                                            <li><a href='/dashjs/admin/reportDocuments.aspx' class='documents_view'>View Template Reports <i data-videoid='148097884' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                                            <li><a href='/dashjs/admin/createreportdoc.aspx' class='documents_create'>Create Template Reports <i data-videoid='148096850' class='fa fa-play-circle help-video pull-right'></i></a></li>                                            
+                                            <li><a href='/dashjs/admin/mydocs.aspx' class='documents_generate'>Generate Reports <i data-videoid='148097136' class='fa fa-play-circle help-video pull-right'></i></a></li>
+                                            <li><a href='/dashjs/AssignedReports.aspx' class='documents_assigned_reports'>Assigned Reports</a></li>
+                                            <li><a href='/dashjs/documents.aspx' class='documents_documents'>My Generated Reports</a></li>
+                                        </ul>
+                                </li>
+                            
+                                <li id="liTickets">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Tickets</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liApproval">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Approval</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        
+                                <li><a href='/dashjs/tasks.aspx?action=SubmittedForApproval' data-selected='SubmittedForApproval'>Submitted For Approval  <span class='badge badge-success'>0</span></a></li>
+                                <li><a href='/dashjs/tasks.aspx?action=ApprovalRequests' data-selected='ApprovalRequests'>Approval Requests       </a></li>
+                            </ul>
+                                </li>
+                            
+                                <li id="liFiles">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Files</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liCommentsandNotes">
+                                    <a href="/dashjs/audit.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Comments and Notes</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liMarketPlace">
+                                    <a href="/dashjs/team.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Market Place</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liContacts">
+                                    <a href="/dashjs/leaderboard.aspx">
+                                        <i class="fa fa-calendar"></i>
+                                        <span class="title">Contacts</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liSettings">
+                                    <a href="/dashjs/admin/users.aspx">
+                                        <i class="fa fa-cog"></i>
+                                        <span class="title">Settings</span>
+                                        <i data-videoid=148097593 class='fa fa-play-circle help-video pull-right'></i>
+
+                                        
+
+                                    </a>
+                                    <ul class='sub-menu'><li class='settings_clients'><a href="/dashjs/admin/clients.aspx">Clients</a></li>
+<li class='settings_daemon'><a href="/dashjs/admin/DaemonLogs.aspx">Daemon Status</a></li>
+<li class='settings_product_updates'><a href="/dashjs/admin/ProductUpdates.aspx">Product Updates</a></li>
+<li class='settings_tips'><a href="/dashjs/admin/Tips.aspx">Tips of the Week</a></li>
+<li class='settings_import'><a href="/dashjs/admin/importData.aspx">Import/Export Data</a></li>
+<li class='settings_users'><a href="/dashjs/admin/users.aspx">Users</a></li>
+<li class='settings_departments'><a href="/dashjs/admin/departments.aspx">Departments</a></li>
+<li class='settings_settings'><a href="/dashjs/admin/settings.aspx">Site settings</a></li>
+<li class='settings_categories'><a href="/dashjs/admin/categories.aspx">Categories and Subcategories</a></li>
+<li class='settings_permissions'><a href="/dashjs/admin/permissions.aspx">Permissions</a></li>
+<li class='settings_settings'><a href="/dashjs/admin/notifications.aspx">Notifications</a></li>
+<li class='settings_profile'><a href="/dashjs/admin/profile.aspx">My Profile</a></li>
+<li class='settings_linked_apps'><a href="/dashjs/admin/LinkedApps.aspx">Linked Apps</a></li>
+</ul>
+                                </li>
+                            
+                                <li id="liContentLibrary">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-book"></i>
+                                        <span class="title">Content Library</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liBackUp">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-database"></i>
+                                        <span class="title">BackUp</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                                <li id="liClientAdminTab">
+                                    <a href="/dashjs/dashboardjsNew.aspx">
+                                        <i class="fa fa-user"></i>
+                                        <span class="title">Client Admin Tab</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                    <ul class='sub-menu'>
+                        <li><a class='tasks_create_template' href='#'>Sub Tab</a></li></ul>
+                                </li>
+                            
+                                <li id="liWorkspace">
+                                    <a href="/dashjs/admin/createreportdoc.aspx">
+                                        <i class="fa fa-user"></i>
+                                        <span class="title">Workspace</span>
+                                        
+
+                                        
+
+                                    </a>
+                                    
+                                </li>
+                            
+                        <!-- start (two-level) -->
+                        <!--                        <li id="liSupport">
+                            <a href="javascript:;">
+                                <i class="fa fa-cog"></i>
+                                <span class="title">Settings</span>
+                                <span class="arrow "></span>
+                            </a>
+
+                            <ul class="sub-menu">
+                                <li><a href="/dashjs/admin/users.aspx">Users</a></li>
+                                <li><a href="/dashjs/admin/departments.aspx">Departments</a></li>
+                                <li><a href="/dashjs/admin/roles.aspx">Roles</a></li>
+                            </ul>
+
+                        </li>
+                        -->
+                        <!-- end -->
+
+                    </ul>
+
+                </div>
+
+            </div>
+
+
+
+            
+
+    <input type="hidden" name="ctl00$ContentPlaceHolder1$ReportID" id="ReportID" />
+    <input name="ctl00$ContentPlaceHolder1$errorsMsjs" type="hidden" id="errorsMsjs" />
+    <input name="ctl00$ContentPlaceHolder1$successMsj" type="hidden" id="successMsj" />
+    <script type="text/javascript">
+//<![CDATA[
+Sys.WebForms.PageRequestManager._initialize('ctl00$ContentPlaceHolder1$ScriptManager1', 'form1', ['fctl00$ContentPlaceHolder1$upModal','upModal'], [], [], 90, 'ctl00');
+//]]>
+</script>
+ 
+
+    <div class="page-content-wrapper">
+        <div class="page-content">
+
+            <div class="row">
+                <div id="globalError" style="display: none;" class="alert-error"></div>
+                <div id="success-msg" class="alert alert-success" style="display: none;"></div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="portlet box mint-background">
+                        <div class="portlet-title">
+                            <div class="caption">
+                                <span id="PageTitle">CREATE REPORT</span>
+                            </div>
+                            <div class="tools">
+                                <a class="" href="javascript:;" id="add-as-fav">
+                                    <i class="fa fa-heart"></i>
+                                </a>
+                                <span class="hidden"><input id="Favorite" type="checkbox" name="ctl00$ContentPlaceHolder1$Favorite" /></span>
+                            </div>
+                            <div class="gray-liner"></div>
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <p class="pull-right report-name">Name of Report</p>
+                                </div>
+
+                                <div class="col-md-5">
+                                    <div class="top-padding">
+                                        <input name="ctl00$ContentPlaceHolder1$ReportName" type="text" id="ReportName" class="form-control" />
+                                    </div>
+                                </div>
+                            </div>          
+                            
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <p class="pull-right report-name">Status</p>
+                                </div>
+
+                                <div class="col-md-5">
+                                    <div class="top-padding">
+                                        <select name="ctl00$ContentPlaceHolder1$Status" id="Status" class="reset-input form-control">
+	<option value="true">Active</option>
+	<option value="false">Inactive</option>
+
+</select>
+                                        <input type="hidden" name="statusId" id="statusId" />
+                                    </div>
+                                </div>
+                            </div>          
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row playbook report-container" id="main-row-with-jstree-and-sections">
+                <div class="col-md-4">
+                    <div class="portlet box">
+
+                        <div class="portlet-title">
+                            <div class="caption">
+                                TEMPLATE OBJECTIVES
+                            </div>
+                            <div class="gray-liner"></div>
+                            <div class="row">
+                                <div class="col-xs-11">
+                                    <div class="input-icon top-padding">
+                                        <i class="fa fa-search"></i>
+                                        <input name="search" class="form-control" id="template-search" placeholder="Search" type="text" onkeydown="if (event.keyCode == 13) return false;"/>
+                                    </div>
+                                </div>
+                                <div class="col-xs-1" style="padding-left: 0px;">
+                                    <a type="button" href="#" onclick="javascript: $('#template-search').val('').trigger('keyup');return false;"><i class="fa fa-remove margin-top-20"></i></a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="portlet-body">
+                            <div class="light-liner bottom-padding"></div>
+                            <div class="references">
+                                <h6 class="references-title no-text-selection">Reference <i class="fa fa-caret-down"></i></h6>
+                                <ul class="list-inline references-container" style="display:none">
+                                    <li><i class="fa fa-tag"></i>Category</li>
+                                    <li><i class="fa fa-tags"></i>Sub-Category</li>
+                                    <li><i class="fa fa-bullseye"></i>Template Task</li>
+                                    <li><i class="fa fa-arrow-circle-right"></i>Action item</li>
+                                    <li><i class="fa fa-bullseye not-approved"></i>Template Task (Not Approved)</li>
+                                </ul>
+                            </div>
+                            <div class="light-liner bottom-padding"></div>
+                            <div class="scroller" style="height: 600px">
+                                <div id="jstree-container">
+                                    <div id="DocItems" class="jstree-content">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-md-8 section-and-task-column">
+                    <div class="portlet box">
+
+                        <div class="portlet-title">
+                            <div class="caption">
+                                TEMPLATE SECTIONS
+                            </div>
+                            <!-- Add comment-->
+                            <div align="right">
+                                <button type="button" class="btn green" id="publish">Publish</button>
+                                <input type="submit" name="ctl00$ContentPlaceHolder1$simulateAssign" value="Simulate Assign" onclick="showLoadingScreen();" id="simulateAssign" class="btn green btn-120x" />
+                                <button type="button" class="btn blue" id="approval">Send for Approval</button>
+                            </div>
+
+                            <div class="gray-liner"></div>
+
+                            <button type="button" class="btn green" id="add-section">+ Add Section</button>
+                            <button type="button" class="btn green" id="customize-footer">Customize Footer</button>
+                        </div>
+
+                        <div class="portlet-body">
+                            <div class="light-liner"></div>
+                            <div id="default-section-container" class="template-section"></div>
+                            <div id="accordion-container">
+                                <div class="controls controls-row jstree-content template-section" id="accordion-section">
+                                    <ul class="sections"></ul>
+                                </div>
+                            </div>
+                            
+                            <input type="hidden" name="ctl00$ContentPlaceHolder1$ShowAssessmentActions" id="ShowAssessmentActions" />
+                            <div class="top-liner" id="assessment-actions">
+                                <div class="margin-top-15">
+                                    <label class="col-sm-4 control-label">Action resulting from assessment:</label>
+                                    <div class="col-sm-8 margin-bottom-15">
+                                        <div class="checkbox-list">
+                                            <label class="checkbox-inline"><input class="md-check" type="checkbox" disabled="disabled" /> Promotion</label>
+                                            <label class="checkbox-inline"><input class="md-check" type="checkbox" disabled="disabled" /> Demotion</label>
+                                            <label class="checkbox-inline"><input class="md-check" type="checkbox" disabled="disabled" /> Maintained</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="light-liner"></div>
+
+                            <input type="hidden" name="ctl00$ContentPlaceHolder1$ReportTemplateFooter" id="ReportTemplateFooter" />
+                            <div id="report-template-footer" class="report-template-footer"></div>
+
+                            <div class="text-right width-100 top-liner">
+                                <a href="#" class="btn btn-gray btn-120x" onclick="javascript:window.location.href = './ReportDocuments.aspx'; return false;">Cancel </a>
+                                <input type="submit" name="ctl00$ContentPlaceHolder1$SaveReportButton" value="Save" onclick="showLoadingScreen();" id="SaveReportButton" class="btn green btn-120x" Disabled="true" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="add-task-report row" style="display: none;">
+                <div class="embed-responsive embed-responsive-16by9">
+                    <iframe src="" data-src="/dashjs/AdddTask.aspx?contentOnly=" frameborder="0" width="95%" style=""></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div class="modal fade" id="confirmationModal" tabindex="-1" role="dialog" aria-labelledby="confirmationModalTitle" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-center" role="document">
+            <div id="upModal">
+	
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h4 class="modal-title">Successful</h4>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                      <div class="modal-body">
+                        The report was saved successfully. <br />
+                        Click "Clone" if you want to create a clone of this report.<br /> 
+                        Click "Close" to close
+
+                      </div>
+                      <div class="modal-footer width-100">
+                         <button onclick="__doPostBack('ctl00$ContentPlaceHolder1$ctl01','')" type="button" class="btn btn-blue btn-120x">Clone</button>
+                        <button type="button" class="btn btn-gray btn-120x" data-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                
+</div>          
+          </div>
+        </div>
+
+
+    </div>
+    <script type="text/x-jquery-tmpl" id="only-default-section">
+        <ul>
+            <div class="default-section-container">
+            </div>
+        </ul>
+    </script>
+    <script type="text/x-jquery-tmpl" id="section-content">
+        <li data-sectionid="${SectionID}" id="section-container-${SectionID}" class="section-container">
+            <div class="portlet box">
+
+                <div class="portlet-title">
+                    <div class="pull-left tools">
+                        <a href="javascript:;" class="collapse"></a>
+                    </div>
+                    <div class="caption margin-top-10">
+                        <span class="name-head">${Name}</span>
+                        <span class="description-head">{{html Description}}</span>
+                    </div>
+                    <div class="tools text-right">
+                        
+                        <a href="javascript:;" class="fa fa-pencil edit-section"></a>
+                        <a href="javascript:;" class="fa fa-minus-circle delete-section"></a>
+                    </div>
+                </div>
+                <div class="portlet-body" id="section-content-${SectionID}">
+                    <ul class="report-data">
+                    </ul>
+                </div>
+            </div>
+
+            <input type="hidden" name="sectionTaskSelected_${SectionID}" class="sectionTaskSelected" value="${TemplateTaskList}" />
+            <input type="hidden" name="sectionName_${SectionID}" class="name-value" value="${Name}" />
+            <input type="hidden" name="sectionDescription_${SectionID}" class="description-value" value="${Description}" />
+            <input type="hidden" name="sectionOrder_${SectionID}" class="section-order" value="${Order}" />
+        </li>
+    </script>
+    <script type="text/x-jquery-tmpl" id="child-task-section">
+        <li class="selected-task" data-id="${id}">${text}
+            <a data-taskid="${id}" data-taskname="${text}" data-type="action-item" class="fa fa-minus-circle remove-task pull-right" href="javascript:;"></a>
+        </li>
+    </script>
+    <script type="text/x-jquery-tmpl" id="selected-task-tmpl">
+        <li class="templateTask-${id}">
+            <span class="marT10 selected-task" data-id="${id}">${text}</span>
+            <a data-taskid="${id}" data-taskname="${text}" data-type="parent-task" class="fa fa-minus-circle remove-task pull-right" href="javascript:;"></a>
+            <a data-taskid="${id}" data-taskname="${text}" class="fa fa-pencil edit-task pull-right" href="javascript:;"></a>
+            <a href="../viewdtask.aspx?templateTaskID=${id}&contentonly=" data-name="${text}" data-tabid="${id}" class="fa fa-eye open-full-screen-modal pull-right"></a>
+            <ul class="childTaskContet">
+            </ul>
+        </li>
+    </script>
+
+    <script type="text/x-jquery-tmpl" id="child-template-task-assignment-tmpl">
+        <li data-id="${id}">
+            <div class="row">
+                <span class="col-md-6">${text}</span>
+                <div class="col-md-6 input-icon input-medium margin-top-5 margin-bottom-5 pull-right">
+                    <i class="fa fa-calendar input-icon"></i>
+                    <input type="text" name="templateTaskDueDate-${id}" class="form-control" />
+                </div>
+            </div>
+        </li>
+    </script>
+    <script type="text/x-jquery-tmpl" id="parent-template-task-assignment-tmpl">
+        <li class="assignTemplateTask-${id}">
+            <div class="row">
+                <span class="col-md-6" data-id="${id}">${text}</span>
+                <div class="col-md-6 input-icon input-medium margin-top-5 margin-bottom-5 pull-right">
+                    <i class="fa fa-calendar input-icon"></i>
+                    <input type="text" name="templateTaskDueDate-${id}" class="form-control" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <ul class="childTaskContet">
+                    </ul>
+                </div>
+            </div>
+        </li>
+    </script>
+
+
+        </div>
+
+        <!--  ///// START FOOTER //////////////////////////////////////// -->
+        <div id="FooterContainer" class="page-footer">
+            <div class="page-footer-inner">
+                <a class="open-new-window" href="http://www.manageupprm.com/terms-of-use/">Terms of Service</a> |
+		        <a class="open-new-window" href="http://www.manageupprm.com/privacy-policy/">Privacy Guidelines</a> |
+		        <a class="open-new-window" href="http://www.manageupprm.com/about-us">About BMBUBU</a> |
+		        <a class="open-new-window" href="mailto:info@manageupprm.com">Contact Us</a> |
+		&copy; 2022 BMBUBU |
+                <span id="version">1.2.0.0</span>
+            </div>
+
+            
+        </div>
+        <!--  ///// END FOOTER //////////////////////////////////////// -->
+
+        <div id="full-screen-modal" class="modal fade bs-modal-lg" aria-hidden="true">
+            <div class="modal-dialog modal-full">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        <h4 class="modal-title"></h4>
+                    </div>
+                    <div class="modal-body" style="min-height: 100px;">
+                        <iframe src="" frameborder="0" width="98%"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="help-video-modal" class="modal fade" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        <h4 class="modal-title"></h4>
+                    </div>
+                    <div class="modal-body" style="min-height: 100px;">
+                        <iframe src="" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="product-updates-modal" class="modal fade bs-modal-lg modal-scroll" aria-hidden="true" style="z-index: 11000">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        
+                        <h2 class="product-updates-modal-title">
+                            <img src="/_ima/logo-blue2.png" class="product-updates-header-logo" /> 
+                            <small><b class="product-updates-version"></b>: </small>
+                            <span id="product-updates-title"></span>
+                        </h2>
+                    </div>
+                    <div class="modal-body">
+                        <div id="product-updates-error-container">
+
+                        </div>
+                        <div class="product-updates-description-container">
+                            
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="product-updates-navigation-buttons">
+                            <button type="button" class="btn btn-xs btn-info product-update-navigation-button" id="product-updates-previous-version-button">
+                                <i class="fa fa-caret-left"></i>
+                                <span class="product-updates-previous-version"></span>
+                            </button>
+                            <button type="button" class="btn btn-xs btn-info product-update-navigation-button" id="product-updates-next-version-button">
+                                <i class="fa fa-caret-right"></i> 
+                                <span class="product-updates-next-version"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tips-modal" class="modal fade bs-modal-lg modal-scroll" aria-hidden="true" style="z-index: 11000">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+                        
+                        <h2 class="tips-modal-title">
+                            <img src="/_ima/logo-blue2.png" class="tips-header-logo" /> 
+                            <span id="tips-title"></span>
+                        </h2>
+                    </div>
+                    <div class="modal-body">
+                        <div id="tips-error-container">
+
+                        </div>
+                        <div class="tips-description-container">
+                            
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="tips-navigation-buttons">
+                            <div class="col-md-1 col-md-offset-5">
+                                <button type="button" class="btn btn-xs btn-info tip-navigation-button" id="tips-previous-button">
+                                    <i class="fa fa-caret-left"></i>
+                                    <span class="tips-previous-version">Previous</span>
+                                </button>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-xs btn-info tip-navigation-button" id="tips-next-button">
+                                    <i class="fa fa-caret-right"></i> 
+                                    <span class="tips-next-version">Next</span>
+                                </button>
+                            </div>
+                            <div class="col-md-5 pull-right show-tips-checkbox-container">
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox" id="show-tips-checkbox" /> Show me tips of the week when I log in
+                                    </label> 
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+    <!-- Ayni itang Modal-->
+    <div id="add-section-modal" class="modal bs-modal-lg fade" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4>Add Section</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="form form-horizontal" role="form">
+                        <div class="form-body">
+                            <div class="form-group">
+                                <label class="control-label col-md-3" for="name">Name</label>
+                                <div class="col-md-9">
+                                    <input name="name" type="text" class="reset-input form-control" />
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <div class="form-group">
+                                    <label class="control-label col-md-3" for="description">Description</label>
+                                    <div class="col-md-9">
+                                        <textarea name="description" class="with-summernote form-control" rows="4"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="button" class="btn green" id="add-section-save" value="Save" />
+                    <a href="#" class="btn red" data-dismiss="modal" onclick="">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="customize-footer-modal" class="modal bs-modal-lg fade" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4>Customize Footer</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="form form-horizontal" role="form">
+                        <div class="form-body">
+                            <div class="control-group">
+                                <div class="form-group">
+                                    <div class="col-md-12">
+                                        <label><input class="md-check" type="checkbox" id="show-assessment-actions" /> Show Assessment Actions</label>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <div class="col-md-12">
+                                        <textarea name="footer-html" class="with-summernote with-signature form-control" rows="4"></textarea>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn green" id="add-to-saved-footers">Add To Saved Footers</button>
+                                <button type="button" class="btn green" id="load-saved-footer">Load Saved Footer</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="button" class="btn green" id="customize-footer-save" value="Save" />
+                    <a href="#" class="btn red" data-dismiss="modal" onclick="">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="load-saved-footer-modal" class="modal bs-modal-lg fade" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4>Load Saved Footer</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="form form-horizontal" role="form">
+                        <div class="form-body">
+                            <div class="form-group">
+                                <label class="control-label col-md-2" for="nameSavedReportFooters">Saved Footers</label>
+                                <div class="col-md-4">
+                                    <select class="form-control" id="SavedReportFooters"></select>
+                                </div>
+                                <div class=" col-md-6">
+                                    <button type="button" class="btn green" id="edit-saved-footer">Edit</button>
+                                    <button type="button" class="btn red" id="delete-saved-footer">Delete</button>
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <div class="form-group">
+                                    <label class="control-label col-md-2" for="footer-html">Footer</label>
+                                    <div class="col-md-10">
+                                        <textarea name="saved-footer-html" class="with-summernote with-signature form-control" rows="4"></textarea>
+                                    </div>
+                                    <button type="button" class="btn green col-md-offset-2" id="saved-footer-save-changes" style="display:none">Save Changes</button>
+                                    <button type="button" class="btn red" id="saved-footer-cancel-changes" style="display:none">Cancel And Discard Changes</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input type="button" class="btn green" id="saved-footer-load" value="Load" />
+                    <input type="button" class="btn red" data-dismiss="modal" id="saved-footer-cancel" value="Cancel" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="confirm-delete-modal" class="modal fade" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>The section will be deleted, Continue?</h3>
+                </div>
+                <div class="modal-footer">
+                    <a href="javascript:removeSection();" class="btn green">Yes</a>
+                    <a href="javascript:void(0);" class="btn red" data-dismiss="modal">No</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="confirm-delete-task-modal" class="modal fade" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>The <span></span>task will be deleted from the section, Continue?</h3>
+                </div>
+                <div class="modal-footer">
+                    <a href="javascript:removeTask();" class="btn green">Yes</a>
+                    <a href="javascript:void(0);" class="btn red" data-dismiss="modal">No</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+        
+
+<script type="text/javascript">
+    function ShowVimeoVideo(url) {
+        var VimeoPlayer = $('#vimeoModalPlayer');
+        VimeoPlayer.attr('width', 500);
+        VimeoPlayer.attr('height', 281);
+        VimeoPlayer.attr('frameborder', 0);
+        VimeoPlayer.attr('src', url);
+
+        $('.modal:visible').modal('hide');
+
+        $("#VimeoModalPlayer").modal('show');
+    };
+
+    function PlayVimeo(url) {
+        ShowVimeoVideo(url);
+    };
+
+    $(document).ready(function () {
+        $('#VimeoModalPlayer').on('hide.bs.modal', function () {
+            console.log('closed');
+            $('#vimeoModalPlayer').attr('src', '');
+        });
+    });
+
+    var initializeSectionModal = function (sectionID, name, description) {
+    if (sectionID == undefined) {
+        sectionID = name = description = '';
+    };
+
+    var sectionModal = $('#add-section-modal');
+
+    sectionModal.data('sectionid', sectionID).modal('show');
+
+    sectionModal.find('input[name="name"]').val(name);
+    sectionModal.find('textarea[name="description"]').summernote('code', description);
+    };
+
+    $('#add-section').on('click', function () {
+        console.log("foo");
+        initializeSectionModal();
+        $('#add-section-modal').modal('show');
+        return false;
+    });
+
+</script>
+
+<div id="VimeoModalPlayer" class="modal fade" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="vimeoModalPlayer" src="" width="500" height="281" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+        <script type="text/x-jquery-tmpl" id="notification-row-content">
+            <li>
+                <a href="${link}">
+                    <!-- use the link to the task for example -->
+                    <span class="time">${friendlyTime}</span>
+                    <span class="details">
+                        <span class="label label-sm label-icon label-success" <i class="fa ${Icon}"></i>">
+                            <i class="fa ${Icon}"></i>
+                            <!-- we can use different types => fa-bell-o fa-bolt fa-bullhorn -->
+                        </span>
+                        ${EventDescription}</span>
+                </a>
+            </li>
+
+        </script>
+
+    </form>
+</body>
+</html>
