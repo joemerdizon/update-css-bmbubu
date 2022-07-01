@@ -1365,7 +1365,7 @@ i.help-video:hover {
 /* ULTIMATE CUSTOM BYPASS */
 
 textarea, select,
-input[type]:not([type=submit]) {
+input[type]:not([type=submit], [type=button]) {
     background-color: #fff;
     height: 50px !important;
     border-radius: 10px !important;
